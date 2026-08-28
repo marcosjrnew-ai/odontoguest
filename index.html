@@ -26,7 +26,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithCustomToken, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCY81MN3nIvA68UMBmblsoogNaNuLH1CT0",
@@ -62,6 +62,7 @@ window._fbUnsubscribers = [];
 function stopFirestoreSync(){
   window._fbUnsubscribers.forEach(fn=>{ try{ fn(); }catch(e){} });
   window._fbUnsubscribers = [];
+  window._fbActiveClinicId = null;
 }
 window._fbStopSync = stopFirestoreSync;
 
@@ -75,14 +76,16 @@ async function startFirestoreSync(email){
     }
     const clinicId = idxSnap.data().clinicId;
     if(!clinicId) return;
+    window._fbActiveClinicId = clinicId;
 
     if(window._onFirestoreClinicDiscovered) window._onFirestoreClinicDiscovered(clinicId);
 
     ARRAY_COLS.forEach(key=>{
       const unsub = onSnapshot(collection(_fbDb, 'clinics', clinicId, key), snap=>{
-        const arr = snap.docs.map(d=>d.data());
+        const arr = [], cache = new Map();
+        snap.docs.forEach(d=>{ const data=d.data(); arr.push(data); cache.set(d.id, data); });
         window._applyingRemote = true;
-        try{ if(window._onFirestoreCollectionUpdate) window._onFirestoreCollectionUpdate(key, arr); }
+        try{ if(window._onFirestoreCollectionUpdate) window._onFirestoreCollectionUpdate(key, arr, cache); }
         finally{ window._applyingRemote = false; }
       }, err=>console.warn('[Firebase] onSnapshot', key, err.message));
       window._fbUnsubscribers.push(unsub);
@@ -108,6 +111,24 @@ onAuthStateChanged(window._fbAuth, user=>{
   if(user && user.uid) startFirestoreSync(user.uid);
   else stopFirestoreSync();
 });
+
+// ── Escrita (Fase 2, Passo 7) — primitivos usados pela camada de diff do
+// script principal (activeClinicId/D/_remoteCache vivem lá, fora do módulo).
+window._fbSetDoc = async function(clinicId, key, docId, data){
+  await setDoc(doc(_fbDb, 'clinics', clinicId, key, docId), data);
+};
+window._fbDeleteDoc = async function(clinicId, key, docId){
+  await deleteDoc(doc(_fbDb, 'clinics', clinicId, key, docId));
+};
+window._fbSetSingleDoc = async function(clinicId, key, data){
+  await setDoc(doc(_fbDb, 'clinics', clinicId, key, 'main'), data);
+};
+window._fbSetProfessionalIndex = async function(email, clinicId){
+  await setDoc(doc(_fbDb, 'professionalIndex', email), {clinicId});
+};
+window._fbDeleteProfessionalIndex = async function(email){
+  await deleteDoc(doc(_fbDb, 'professionalIndex', email));
+};
 </script>
 <meta name="theme-color" content="#0c6e9e"/>
 <meta name="mobile-web-app-capable" content="yes"/>
@@ -4812,10 +4833,61 @@ window._onFirestoreClinicDiscovered=function(clinicId){
   activeClinicId=clinicId;
   setActiveClinicId(clinicId);
 };
-window._onFirestoreCollectionUpdate=function(key,data){
+window._remoteCache={};
+window._onFirestoreCollectionUpdate=function(key,data,cache){
   D[key]=data;
+  window._remoteCache[key]=cache!==undefined?cache:JSON.parse(JSON.stringify(data));
   save(key);
   if(CU&&activePage)go(activePage);
+};
+
+// ── Passo 7: terceira camada de save() — sobe pro Firestore o que mudou ──
+// Segue o mesmo padrão já documentado (reatribuição, nunca `function save(k){}`
+// de novo — é o bug de recursão infinita já resolvido uma vez neste arquivo).
+const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','otherPayments','suppliers','professionals','procs'];
+const FB_SINGLEDOC_KEYS=['config','messages'];
+function fbDocIdFor(key,rec){
+  return key==='professionals' ? String(rec.email||'').toLowerCase().trim() : String(rec.id);
+}
+function pushToFirestore(key){
+  if(!window._fbActiveClinicId||!window._fbSetDoc)return;
+  const clinicId=window._fbActiveClinicId;
+  if(FB_SINGLEDOC_KEYS.includes(key)){
+    const data=D[key]||{};
+    window._fbSetSingleDoc(clinicId,key,data).catch(e=>console.warn('[Firebase] write',key,e.message));
+    window._remoteCache[key]=JSON.parse(JSON.stringify(data));
+    return;
+  }
+  if(!FB_ARRAY_KEYS.includes(key))return; // ex: 'roles' não é sincronizado (ver plano, Fase 2 seção 2)
+  const cache=window._remoteCache[key] instanceof Map?window._remoteCache[key]:new Map();
+  const currentIds=new Set();
+  (D[key]||[]).forEach(rec=>{
+    const docId=fbDocIdFor(key,rec);
+    if(!docId)return;
+    currentIds.add(docId);
+    const prevJSON=cache.has(docId)?JSON.stringify(cache.get(docId)):null;
+    if(prevJSON===JSON.stringify(rec))return; // sem mudança, não reescreve à toa
+    window._fbSetDoc(clinicId,key,docId,rec).catch(e=>console.warn('[Firebase] write',key,docId,e.message));
+    if(key==='professionals'){
+      window._fbSetProfessionalIndex(docId,clinicId).catch(e=>console.warn('[Firebase] professionalIndex',docId,e.message));
+    }
+    cache.set(docId,rec);
+  });
+  cache.forEach((_,docId)=>{
+    if(currentIds.has(docId))return;
+    window._fbDeleteDoc(clinicId,key,docId).catch(e=>console.warn('[Firebase] delete',key,docId,e.message));
+    if(key==='professionals'){
+      window._fbDeleteProfessionalIndex(docId).catch(e=>console.warn('[Firebase] delete professionalIndex',docId,e.message));
+    }
+    cache.delete(docId);
+  });
+  window._remoteCache[key]=cache;
+}
+const _origSaveFirestore=save;
+save=function(k){
+  _origSaveFirestore(k);
+  if(window._applyingRemote)return; // eco do próprio onSnapshot, não reenviar
+  pushToFirestore(k);
 };
 
 function updateClinicSelector(){
