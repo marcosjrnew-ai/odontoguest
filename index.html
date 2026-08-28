@@ -3264,13 +3264,15 @@ function renderBackup(){
 function autoBackup(){const now=Date.now(),last=+localStorage.getItem('og3_last_autobackup')||0;if(now-last>3600000){localStorage.setItem('og3_last_autobackup',now);localStorage.setItem('og3_autobackup_data',JSON.stringify({version:'3.9',timestamp:new Date().toISOString(),data:D}));}}
 
 // ─── CLEAR DEMO DATA ───────────────────────────────────────
+const DEMO_IDS={patients:[1,2],appointments:[1,2],visits:[1],budgets:[1],returns:[1],stock:[1,2,3,4,5]};
 function clearDemoData() {
   if (!canAdmin()) { alert('Sem permissão.'); return; }
-  if (!confirm('⚠️ Apagar TODOS os dados de demonstração?\n\nPacientes, agendamentos, prontuários, estoque e orçamentos de teste serão removidos.\nProfissionais e configurações são mantidos.\n\nConfirma?')) return;
-  ['patients','appointments','visits','budgets','returns','otherPayments','stock','suppliers'].forEach(k => {
-    D[k] = []; save(k);
+  if (!confirm('⚠️ Apagar os dados de demonstração (os que já vêm de fábrica no app)?\n\nSeus pacientes, agendamentos e outros registros reais NÃO são afetados — só o que é exemplo.\n\nConfirma?')) return;
+  Object.keys(DEMO_IDS).forEach(k => {
+    D[k] = (D[k]||[]).filter(rec => !DEMO_IDS[k].includes(rec.id));
+    save(k);
   });
-  alert('✅ Dados de teste removidos!');
+  alert('✅ Dados de demonstração removidos!');
   renderDashboard();
 }
 
