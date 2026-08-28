@@ -102,7 +102,10 @@ async function startFirestoreSync(email){
 }
 
 onAuthStateChanged(window._fbAuth, user=>{
-  if(user && user.email) startFirestoreSync(user.email);
+  // uid é o e-mail normalizado (custom token minta uid=email, ver google-login.js) —
+  // user.email fica sempre null aqui, já que este usuário nunca passou por um
+  // provedor "de verdade" (Google/senha) do próprio Firebase Auth.
+  if(user && user.uid) startFirestoreSync(user.uid);
   else stopFirestoreSync();
 });
 </script>
