@@ -4985,7 +4985,29 @@ window._onFirestoreClinicDiscovered=function(clinicId){
   setActiveClinicId(clinicId);
 };
 window._remoteCache={};
+window._fbFirstSync={};
+// Reconciliação da 1ª sincronização de cada coleção, por sessão: se o Firestore
+// vier vazio (ou incompleto) mas esse aparelho já tinha registro local não
+// migrado (ex.: dado criado antes da Fase 2 existir), evita apagar esse dado
+// local — em vez de D[key]=data direto, faz a união e sobe pro Firestore o que
+// só existia localmente. Bug real encontrado em 28/08/2026 (ver CLAUDE.md,
+// "Mudança de modelo do consultório da Lana"): sem isso, a 1ª sincronização de
+// um navegador sobrescrevia localStorage com o vazio vindo do Firestore.
 window._onFirestoreCollectionUpdate=function(key,data,cache){
+  const isFirst=!window._fbFirstSync[key];
+  window._fbFirstSync[key]=true;
+  if(isFirst&&Array.isArray(data)&&cache instanceof Map){
+    const remoteIds=new Set(cache.keys());
+    const localOnly=(D[key]||[]).filter(rec=>!remoteIds.has(fbDocIdFor(key,rec)));
+    if(localOnly.length){
+      D[key]=[...data,...localOnly];
+      window._remoteCache[key]=cache;
+      save(key);
+      pushToFirestore(key); // sobe pro Firestore o que só existia localmente
+      if(CU&&activePage)go(activePage);
+      return;
+    }
+  }
   D[key]=data;
   window._remoteCache[key]=cache!==undefined?cache:JSON.parse(JSON.stringify(data));
   save(key);
