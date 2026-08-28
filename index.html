@@ -1222,8 +1222,8 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     </div>
     <div><label>Nível de Acesso</label><select class="inp" id="pr-profile">
       <option value="admin">Administrador Principal (Dentista Principal — acesso administrativo)</option>
-      <option value="coadmin">Co-administrador (acesso administrativo limitado)</option>
-      <option value="editor">Editor (cria/edita registros)</option>
+      <option value="coadmin">Gestora (acesso administrativo)</option>
+      <option value="editor">Gerente (acesso administrativo)</option>
       <option value="reader">Leitor (apenas consulta)</option></select>
       <div style="font-size:11px;color:#94a3b8;margin-top:3px">O login é feito com a conta Google cadastrada no campo E-mail acima — não existe mais senha própria do sistema.</div></div>
   </div>
@@ -1237,9 +1237,10 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 <div class="overlay" id="m-op" style="display:none" onclick="if(event.target===this)cm('op')"><div class="modal" onclick="event.stopPropagation()" style="max-width:440px">
   <div class="modal-title" id="m-op-t">Outro Pagamento</div>
   <div style="display:flex;flex-direction:column;gap:10px">
-    <div><label>Tipo</label><select class="inp" id="op-type">
+    <div><label>Tipo</label><select class="inp" id="op-type" onchange="toggleRentRate()">
       <option value="daily">Diária de Profissional</option><option value="expense">Despesa Operacional</option>
       <option value="material">Material Extra</option><option value="rent">Aluguel/Infraestrutura</option><option value="other">Outro</option></select></div>
+    <div id="op-rate-wrap" style="display:none"><label>Tarifa</label><select class="inp" id="op-rate" onchange="applyRentRate()"></select></div>
     <div><label>Descrição</label><input class="inp" id="op-desc"/></div>
     <div><label>Profissional (se aplicável)</label><select class="inp" id="op-pro"><option value="">Nenhum</option></select></div>
     <div><label>Data</label><input type="date" class="inp" id="op-date"/></div>
@@ -1333,7 +1334,7 @@ const DEF_PROCS=[
 ];
 const DEF={
 professionals:[
-  {id:1,fullName:"ERIKA SVETLANA ANDRADE AMORIM",dispName:"Dra. Lana Andrade",role:"Dentista",phone:"",email:"lanaandrademm@gmail.com",color:"#0ea5e9",commission:60,daily:0,profile:"coadmin"},
+  {id:1,fullName:"ERIKA SVETLANA ANDRADE AMORIM",dispName:"Dra. Lana Andrade",role:"Dentista",phone:"",email:"lanaandrademm@gmail.com",color:"#0ea5e9",commission:100,daily:0,profile:"coadmin"},
   {id:2,fullName:"MARCOS JUNIOR",dispName:"Marcos Junior",role:"Administrador",phone:"",email:"marcosjrnew@gmail.com",color:"#f59e0b",commission:0,daily:0,profile:"admin"},
   {id:3,fullName:"MARCOS JUNIOR",dispName:"Marcos Jr. (Profissional)",role:"Dentista",phone:"",email:"lmjrcm@gmail.com",color:"#10b981",commission:55,daily:0,profile:"editor"},
 ],
@@ -1392,12 +1393,12 @@ const getSk=id=>D.stock.find(s=>s.id===+id)||{cost:0,name:""};
 const getSup=id=>D.suppliers.find(s=>s.id===+id)||{name:"—"};
 const patDisp=id=>{const p=getPat(id);return p.social||p.name;};
 const waBadge=(phone,msg)=>{const l=wa(phone,msg);return l?`<a href="${l}" target="_blank" style="color:#25d366;text-decoration:none;font-weight:700">📲</a>`:'';}; 
-const ROLES_LABEL={dev:'Desenvolvedor',admin:'Administrador',coadmin:'Co-Admin',editor:'Editor',reader:'Leitor'};
+const ROLES_LABEL={dev:'Desenvolvedor',admin:'Administrador',coadmin:'Gestora',editor:'Gerente',reader:'Leitor'};
 const ROLES_CSS={dev:'role-dev',admin:'role-admin',coadmin:'role-coadmin',editor:'role-editor',reader:'role-reader'};
 
 // Permission helpers
 const canEdit=()=>CU&&['dev','admin','coadmin','editor'].includes(CU.profile);
-const canAdmin=()=>CU&&['dev','admin','coadmin'].includes(CU.profile);
+const canAdmin=()=>CU&&['dev','admin','coadmin','editor'].includes(CU.profile);
 const isDev=()=>CU&&CU.profile==='dev';
 
 // Patient balance (total owed - total paid across visits)
@@ -2577,6 +2578,25 @@ function renderFinance(){
 }
 
 // ─── OTHER PAYMENTS ────────────────────────────────────────
+const RENT_RATES=[
+  {key:'monthly',label:'Mensal (uso integral)',value:1000},
+  {key:'biweekly',label:'Quinzenal',value:600},
+  {key:'daily',label:'Diária completa (manhã + tarde)',value:300},
+  {key:'shift',label:'Período avulso (1 turno)',value:150},
+  {key:'weekly_pkg',label:'Pacote mensal — 1x/semana',value:600},
+  {key:'biweekly_pkg',label:'Pacote quinzenal — 15 em 15 dias',value:400},
+];
+function toggleRentRate(){
+  const isRent=document.getElementById('op-type').value==='rent';
+  document.getElementById('op-rate-wrap').style.display=isRent?'':'none';
+  if(isRent){
+    document.getElementById('op-rate').innerHTML='<option value="free">Valor livre</option>'+RENT_RATES.map(r=>`<option value="${r.key}">${r.label} — ${fmt(r.value)}</option>`).join('');
+  }
+}
+function applyRentRate(){
+  const rate=RENT_RATES.find(r=>r.key===document.getElementById('op-rate').value);
+  if(rate)document.getElementById('op-val').value=rate.value;
+}
 function renderOtherPay(){
   const total=D.otherPayments.reduce((s,op)=>s+(op.val||0),0);
   const byType={'daily':'Diária','expense':'Despesa','material':'Material','rent':'Aluguel','other':'Outro'};
@@ -2603,10 +2623,12 @@ function openOtherPay(id){
   document.getElementById('m-op-t').textContent=id?'Editar Lançamento':'Novo Lançamento';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
   sv('op-type',op.type||'daily');sv('op-desc',op.desc);sv('op-pro',op.professionalId||'');sv('op-date',op.date||today());sv('op-val',op.val);sv('op-notes',op.notes);
+  toggleRentRate();sv('op-rate',op.rateType||'free');
   document.getElementById('op-del').style.display=(id&&canAdmin())?'inline-flex':'none';om('op');
 }
 function saveOtherPay(){
-  if(!canEdit())return;const obj={type:document.getElementById('op-type').value,desc:document.getElementById('op-desc').value,professionalId:+document.getElementById('op-pro').value||0,date:document.getElementById('op-date').value,val:+document.getElementById('op-val').value||0,notes:document.getElementById('op-notes').value};
+  if(!canEdit())return;const type=document.getElementById('op-type').value;
+  const obj={type,desc:document.getElementById('op-desc').value,professionalId:+document.getElementById('op-pro').value||0,date:document.getElementById('op-date').value,val:+document.getElementById('op-val').value||0,notes:document.getElementById('op-notes').value,rateType:type==='rent'?(document.getElementById('op-rate').value||'free'):null};
   EID?D.otherPayments=D.otherPayments.map(o=>o.id===EID?{...obj,id:EID}:o):D.otherPayments.push({...obj,id:uid()});
   save('otherPayments');cm('op');renderOtherPay();
 }
