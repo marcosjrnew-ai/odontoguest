@@ -22,6 +22,7 @@
 <title>OdontoGuest v3.9</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦷</text></svg>"/>
 <link rel="manifest" href="manifest.json"/>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <meta name="theme-color" content="#0c6e9e"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -294,46 +295,11 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
       <div class="login-logo-text">OdontoGuest</div>
       <div style="font-size:11px;color:#64748b;text-align:center;margin-top:2px">v3.9 — Sistema de Gestão</div>
     </div>
-    <div style="margin-bottom:11px">
-      <label>Usuário</label>
-      <select class="inp" id="login-user" onchange="onUserChange()">
-        <option value="">Selecione...</option>
-      </select>
-    </div>
-    <div style="margin-bottom:14px">
-      <label>Senha</label>
-      <div style="position:relative">
-        <input type="password" class="inp" id="login-pass" placeholder="••••••"
-          onkeydown="if(event.key==='Enter')doLogin()" style="padding-right:44px"/>
-        <button type="button" onclick="togglePass('login-pass',this)"
-          style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:#94a3b8">👁️</button>
-      </div>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-      <input type="checkbox" id="login-remember" style="width:16px;height:16px;cursor:pointer"/>
-      <label for="login-remember" style="font-size:13px;color:#475569;cursor:pointer;margin:0;text-transform:none;letter-spacing:0;font-weight:500">Lembrar minhas credenciais</label>
-    </div>
-    <button class="btn btn-p" style="width:100%;justify-content:center;padding:11px;font-size:14px" onclick="doLogin()">Entrar no Sistema</button>
-    <div id="login-err" style="color:#e63946;font-size:12.5px;text-align:center;margin-top:10px;display:none">Usuário ou senha incorretos.</div>
-    <div style="margin-top:12px;display:flex;justify-content:space-between">
-      <button type="button" onclick="showMasterLogin()" style="background:none;border:none;color:#94a3b8;font-size:11.5px;cursor:pointer;text-decoration:underline">🔐 Acesso Master</button>
-      <button type="button" onclick="showForgotModal()" style="background:none;border:none;color:#94a3b8;font-size:11.5px;cursor:pointer;text-decoration:underline">❓ Esqueci a senha</button>
-    </div>
-  </div>
-</div>
-
-<!-- MASTER PASSWORD MODAL -->
-<div id="master-modal" style="display:none;position:fixed;inset:0;background:rgba(10,20,35,.6);z-index:99999;display:none;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:20px;padding:28px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-    <div style="font-family:Sora,sans-serif;font-size:17px;font-weight:800;margin-bottom:6px">🔐 Senha Master</div>
-    <div style="font-size:13px;color:#64748b;margin-bottom:16px">Acesso de emergência para redefinir senhas.</div>
-    <div style="position:relative;margin-bottom:14px">
-      <input type="password" class="inp" id="master-inp" placeholder="Senha master..."/>
-      <button onclick="togglePass('master-inp',this)" type="button" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:#94a3b8">👁️</button>
-    </div>
-    <button class="btn btn-p" style="width:100%;justify-content:center" onclick="doMasterLogin()">Acessar</button>
-    <div id="master-err" style="color:#e63946;font-size:12.5px;text-align:center;margin-top:8px;display:none">Senha incorreta.</div>
-    <button onclick="document.getElementById('master-modal').style.display='none'" style="display:block;width:100%;margin-top:10px;background:none;border:none;color:#94a3b8;cursor:pointer;font-size:13px">Cancelar</button>
+    <button type="button" id="google-login-btn" style="width:100%;justify-content:center;padding:11px;font-size:14px;display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid var(--border);border-radius:10px;color:var(--t1);font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif" onclick="handleGoogleLoginClick()">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.8 2.73v2.27h2.91c1.7-1.57 2.69-3.88 2.69-6.64z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.27c-.81.54-1.84.86-3.05.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.34C2.44 15.98 5.48 18 9 18z"/><path fill="#FBBC05" d="M3.95 10.69C3.77 10.15 3.67 9.58 3.67 9s.1-1.15.28-1.69V4.97H.96C.35 6.19 0 7.55 0 9s.35 2.81.96 4.03l2.99-2.34z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.47.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.97l2.99 2.34C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+      Entrar com o Google
+    </button>
+    <div id="login-err" style="color:#e63946;font-size:12.5px;text-align:center;margin-top:12px;display:none"></div>
   </div>
 </div>
 
@@ -386,7 +352,6 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     </div>
     <div style="display:flex;gap:6px;padding:8px 10px 0">
       <button onclick="openUserProfile()" style="flex:1;background:rgba(255,255,255,.1);border:none;border-radius:8px;color:rgba(255,255,255,.8);font-size:11.5px;padding:6px;cursor:pointer;font-family:DM Sans,sans-serif">👤 Perfil</button>
-      <button onclick="switchUser()" style="flex:1;background:rgba(255,255,255,.1);border:none;border-radius:8px;color:rgba(255,255,255,.8);font-size:11.5px;padding:6px;cursor:pointer;font-family:DM Sans,sans-serif">🔄 Trocar</button>
       <button onclick="doLogout()" style="flex:1;background:rgba(220,38,38,.25);border:none;border-radius:8px;color:#fca5a5;font-size:11.5px;padding:6px;cursor:pointer;font-family:DM Sans,sans-serif">🚪 Sair</button>
     </div>
   </div>
@@ -673,16 +638,6 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
       <div style="font-weight:800;font-size:15px;margin-bottom:6px">📧 E-mail — Retorno</div>
       <div style="font-size:11.5px;color:var(--t3);margin-bottom:8px">Variáveis: {nome} {data} {motivo} {clinica}</div>
       <textarea class="inp" id="msg-email-return" rows="6" style="font-size:13px"></textarea>
-    </div>
-    <div class="card">
-      <div style="font-weight:800;font-size:15px;margin-bottom:6px">📱 WhatsApp — Recuperar Senha</div>
-      <div style="font-size:11.5px;color:var(--t3);margin-bottom:8px">Variáveis: {nome} {senha} {clinica}</div>
-      <textarea class="inp" id="msg-wa-pass" rows="5" style="font-size:13px"></textarea>
-    </div>
-    <div class="card">
-      <div style="font-weight:800;font-size:15px;margin-bottom:6px">📧 E-mail — Recuperar Senha</div>
-      <div style="font-size:11.5px;color:var(--t3);margin-bottom:8px">Variáveis: {nome} {senha} {clinica}</div>
-      <textarea class="inp" id="msg-email-pass" rows="5" style="font-size:13px"></textarea>
     </div>
   </div>
 </div>
@@ -1102,15 +1057,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
       <option value="coadmin">Co-administrador (acesso administrativo limitado)</option>
       <option value="editor">Editor (cria/edita registros)</option>
       <option value="reader">Leitor (apenas consulta)</option></select>
-      <div style="font-size:11px;color:#94a3b8;margin-top:3px">⚠️ O perfil <b>Desenvolvedor (Master)</b> só é acessado via login especial.</div></div>
-    <div id="pr-pass-wrap">
-      <label>Senha de Acesso</label>
-      <div style="position:relative">
-        <input type="password" class="inp" id="pr-pass" placeholder="Mínimo 4 caracteres" style="padding-right:44px"/>
-        <button onclick="togglePass('pr-pass',this)" type="button" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:#94a3b8">👁️</button>
-      </div>
-      <div style="font-size:11px;color:#94a3b8;margin-top:3px">Deixe em branco para manter a senha atual.</div>
-    </div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:3px">O login é feito com a conta Google cadastrada no campo E-mail acima — não existe mais senha própria do sistema.</div></div>
   </div>
   <div class="modal-footer">
     <button class="btn btn-r btn-sm" id="pr-del" style="display:none" onclick="delPro()">Excluir</button>
@@ -1218,9 +1165,9 @@ const DEF_PROCS=[
 ];
 const DEF={
 professionals:[
-  {id:1,fullName:"ERIKA SVETLANA ANDRADE AMORIM",dispName:"Dra. Lana Andrade",role:"Dentista",phone:"",email:"",color:"#0ea5e9",commission:60,daily:0,profile:"admin",pass:"1234"},
-  {id:2,fullName:"CARLOS ALBERTO LIMA NETO",dispName:"Dr. Carlos Lima",role:"Dentista",phone:"",email:"",color:"#f59e0b",commission:55,daily:0,profile:"coadmin",pass:"1234"},
-  {id:3,fullName:"MARIANA SOUZA FERREIRA",dispName:"Mariana",role:"Secretária",phone:"",email:"",color:"#10b981",commission:0,daily:200,profile:"editor",pass:"1234"},
+  {id:1,fullName:"ERIKA SVETLANA ANDRADE AMORIM",dispName:"Dra. Lana Andrade",role:"Dentista",phone:"",email:"lanaandrademm@gmail.com",color:"#0ea5e9",commission:60,daily:0,profile:"coadmin"},
+  {id:2,fullName:"MARCOS JUNIOR",dispName:"Marcos Junior",role:"Administrador",phone:"",email:"marcosjrnew@gmail.com",color:"#f59e0b",commission:0,daily:0,profile:"admin"},
+  {id:3,fullName:"MARCOS JUNIOR",dispName:"Marcos Jr. (Profissional)",role:"Dentista",phone:"",email:"lmjrcm@gmail.com",color:"#10b981",commission:55,daily:0,profile:"editor"},
 ],
 patients:[
   {id:1,name:"João Pedro Alves",social:"João",cpf:"123.456.789-00",dob:"1990-05-12",gender:"Masculino",phone:"11991234567",email:"joao@email.com",addr:"Rua das Flores, 100",bloodType:"O+",allergies:"Penicilina",meds:"",comorb:"",notes:"Paciente ansioso",createdAt:"2025-01-10"},
@@ -1293,31 +1240,57 @@ function patBalance(patId){
   return{total,paid,remain:total-paid};
 }
 
-// ─── LOGIN & SESSION ───────────────────────────────────────
-const MASTER_PASS = 'OdontoMaster2025';
+// ─── LOGIN & SESSION (Google) ───────────────────────────────
+const GOOGLE_CLIENT_ID = '451256540720-lan6madc0350are3qcsnihc87khfip8r.apps.googleusercontent.com';
+let _googleTokenClient = null;
 
-function togglePass(inputId, btn) {
-  const el = document.getElementById(inputId);
-  if (!el) return;
-  if (el.type === 'password') { el.type = 'text'; if(btn) btn.textContent = '🙈'; }
-  else { el.type = 'password'; if(btn) btn.textContent = '👁️'; }
+function initGoogleLogin(){
+  if(!window.google || !google.accounts || !google.accounts.oauth2){ setTimeout(initGoogleLogin, 300); return; }
+  _googleTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: 'openid email profile',
+    prompt: 'select_account',
+    callback: onGoogleToken
+  });
 }
 
-function buildLoginSel(){
-  const devOpt='<option value="dev">🔧 Desenvolvedor</option>';
-  const proOpts=D.professionals.map(p=>`<option value="${p.id}">${p.dispName} — ${p.role}</option>`).join('');
-  const el=document.getElementById('login-user');
-  if(el) el.innerHTML='<option value="">Selecione...</option>'+devOpt+proOpts;
+function handleGoogleLoginClick(){
+  const errEl=document.getElementById('login-err');
+  if(errEl) errEl.style.display='none';
+  if(!_googleTokenClient){
+    if(errEl){ errEl.textContent='Login com Google ainda carregando, tente novamente em instantes.'; errEl.style.display='block'; }
+    return;
+  }
+  _googleTokenClient.requestAccessToken();
 }
 
-function onUserChange(){
-  const uid2=document.getElementById('login-user')?.value;
-  if(!uid2) return;
-  const saved=localStorage.getItem('og3_cred_'+uid2);
-  if(saved){
-    document.getElementById('login-pass').value=saved;
-    const cb=document.getElementById('login-remember');
-    if(cb) cb.checked=true;
+async function onGoogleToken(tokenResponse){
+  const errEl=document.getElementById('login-err');
+  if(!tokenResponse || tokenResponse.error){
+    if(errEl){ errEl.textContent='Login com Google cancelado ou falhou.'; errEl.style.display='block'; }
+    return;
+  }
+  try{
+    const r = await fetch('/api/google-login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({access_token: tokenResponse.access_token})
+    });
+    const data = await r.json().catch(()=>null);
+    if(!r.ok || !data || !data.email){
+      if(errEl){ errEl.textContent=(data&&data.error)||'Não foi possível confirmar sua conta Google.'; errEl.style.display='block'; }
+      return;
+    }
+    const email = data.email.toLowerCase().trim();
+    const pro = D.professionals.find(p=>(p.email||'').toLowerCase().trim()===email);
+    if(!pro){
+      if(errEl){ errEl.textContent='Sua conta Google ('+email+') não está autorizada a acessar o OdontoGuest.'; errEl.style.display='block'; }
+      return;
+    }
+    localStorage.setItem('og3_session', JSON.stringify({id:pro.id, ts:Date.now()}));
+    enterApp(pro);
+  }catch(e){
+    console.warn('[OdontoGuest] Erro no login Google:', e);
+    if(errEl){ errEl.textContent='Erro ao conectar com o servidor. Tente novamente.'; errEl.style.display='block'; }
   }
 }
 
@@ -1331,60 +1304,15 @@ function checkAutoLogin(){
       localStorage.removeItem('og3_session');
       return false;
     }
-    let pro=null;
-    if(s.id===0){ pro={id:0,fullName:'DESENVOLVEDOR',dispName:'Desenvolvedor',role:'Sistema',phone:'',email:'',color:'#7c3aed',commission:0,daily:0,profile:'dev',pass:'dev1234'}; }
-    else { pro=D.professionals.find(p=>p.id===s.id&&p.pass===s.pass); }
+    const pro=D.professionals.find(p=>p.id===s.id);
     if(pro){
       // Renovar timestamp da sessão a cada auto-login (sliding expiry)
-      localStorage.setItem('og3_session', JSON.stringify({id:pro.id, pass:pro.pass, ts:Date.now()}));
+      localStorage.setItem('og3_session', JSON.stringify({id:pro.id, ts:Date.now()}));
       enterApp(pro);
       return true;
     }
   }catch(e){ console.warn('[OdontoGuest] Erro no auto-login:', e); }
   return false;
-}
-
-function showMasterLogin() {
-  const m=document.getElementById('master-modal');
-  if(m){ m.style.display='flex'; document.getElementById('master-inp').value=''; document.getElementById('master-err').style.display='none'; }
-}
-
-function doMasterLogin() {
-  const pass = document.getElementById('master-inp').value;
-  if (pass !== MASTER_PASS) { document.getElementById('master-err').style.display='block'; return; }
-  document.getElementById('master-modal').style.display='none';
-  const masterPro = {id:0,fullName:'MASTER',dispName:'Master Admin',role:'Sistema',phone:'',email:'',color:'#7c3aed',commission:0,daily:0,profile:'dev',pass:MASTER_PASS};
-  // Persistir sessão master com timestamp
-  localStorage.setItem('og3_session', JSON.stringify({id:masterPro.id, pass:masterPro.pass, ts:Date.now()}));
-    setTimeout(checkFirstAccess,1200);
-  enterApp(masterPro);
-  alert('✅ Acesso Master ativo. Vá em Profissionais para redefinir senhas.');
-}
-
-function doLogin(){
-  const uid2=document.getElementById('login-user').value;
-  const pass=document.getElementById('login-pass').value;
-  const remember=document.getElementById('login-remember')?.checked||false;
-  const errEl=document.getElementById('login-err');
-  if(!uid2||!pass){ if(errEl) errEl.style.display='block'; return; }
-  let pro=null;
-  if(uid2==='dev'){
-    if(pass!=='dev1234'){ if(errEl) errEl.style.display='block'; return; }
-    pro={id:0,fullName:'DESENVOLVEDOR',dispName:'Desenvolvedor',role:'Sistema',phone:'',email:'',color:'#7c3aed',commission:0,daily:0,profile:'dev',pass:'dev1234'};
-  } else {
-    pro=D.professionals.find(p=>p.id===+uid2&&p.pass===pass);
-    if(!pro){ if(errEl) errEl.style.display='block'; return; }
-  }
-  if(errEl) errEl.style.display='none';
-  // SEMPRE persistir sessão com timestamp para manter login após F5
-  localStorage.setItem('og3_session', JSON.stringify({id:pro.id, pass:pro.pass, ts:Date.now()}));
-  // "Manter conectado" controla apenas o preenchimento automático de credenciais
-  if(remember){
-    localStorage.setItem('og3_cred_'+uid2, pass);
-  } else {
-    localStorage.removeItem('og3_cred_'+uid2);
-  }
-  enterApp(pro);
 }
 
 function enterApp(pro){
@@ -1408,9 +1336,7 @@ function doLogout(){
   CU=null;
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('app').style.display='none';
-  const p=document.getElementById('login-pass'); if(p) p.value='';
   const e=document.getElementById('login-err'); if(e) e.style.display='none';
-  buildLoginSel();
 }
 
 function applyPermissions(){
@@ -2128,52 +2054,9 @@ function printRecord(){
     <div class="modal-title" id="uprof-name" style="margin:10px 0 4px">Nome</div>
     <div id="uprof-role" style="font-size:13px;color:var(--t3)"></div>
   </div>
-  <div style="display:flex;flex-direction:column;gap:10px">
-    <div class="form-sec">Alterar Senha</div>
-    <div><label>Senha Atual</label>
-      <div style="position:relative"><input type="password" class="inp" id="uprof-oldpass" placeholder="••••••" style="padding-right:44px"/>
-      <button onclick="togglePass('uprof-oldpass',this)" type="button" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:#94a3b8">👁️</button></div>
-    </div>
-    <div><label>Nova Senha</label>
-      <div style="position:relative"><input type="password" class="inp" id="uprof-newpass" placeholder="Mínimo 4 caracteres" style="padding-right:44px"/>
-      <button onclick="togglePass('uprof-newpass',this)" type="button" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:#94a3b8">👁️</button></div>
-    </div>
-    <button class="btn btn-p" onclick="changeOwnPass()">🔑 Alterar Senha</button>
-  </div>
   <div class="modal-footer">
     <button class="btn btn-o" onclick="cm('uprof')">Fechar</button>
     <button class="btn btn-r" onclick="doLogout();cm('uprof')">🚪 Sair do Sistema</button>
-  </div>
-</div></div>
-
-<!-- SWITCH USER MODAL -->
-<div class="overlay" id="m-switch" style="display:none" onclick="if(event.target===this)cm('switch')">
-<div class="modal" onclick="event.stopPropagation()" style="max-width:380px">
-  <div class="modal-title">🔄 Trocar Usuário</div>
-  <div style="margin-bottom:12px"><label>Usuário</label><select class="inp" id="sw-user"></select></div>
-  <div style="margin-bottom:16px"><label>Senha</label>
-    <div style="position:relative"><input type="password" class="inp" id="sw-pass" placeholder="••••••" style="padding-right:44px" onkeydown="if(event.key==='Enter')doSwitch()"/>
-    <button onclick="togglePass('sw-pass',this)" type="button" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:#94a3b8">👁️</button></div>
-  </div>
-  <div id="sw-err" style="color:#e63946;font-size:12.5px;margin-bottom:10px;display:none">Usuário ou senha incorretos.</div>
-  <div class="modal-footer">
-    <button class="btn btn-o" onclick="cm('switch')">Cancelar</button>
-    <button class="btn btn-p" onclick="doSwitch()">Entrar</button>
-  </div>
-</div></div>
-
-<!-- FORGOT PASSWORD MODAL -->
-<div class="overlay" id="m-forgot" style="display:none" onclick="if(event.target===this)cm('forgot')">
-<div class="modal" onclick="event.stopPropagation()" style="max-width:400px">
-  <div class="modal-title">🔑 Recuperar Acesso</div>
-  <p style="font-size:13px;color:var(--t3);margin-bottom:16px">Informe o e-mail ou telefone cadastrado para receber instruções de recuperação.</p>
-  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
-    <div><label>E-mail ou Telefone</label><input class="inp" id="forgot-contact" placeholder="seu@email.com ou (11) 9xxxx-xxxx"/></div>
-  </div>
-  <div id="forgot-result" style="display:none;padding:12px;border-radius:10px;font-size:13px;margin-bottom:12px"></div>
-  <div class="modal-footer">
-    <button class="btn btn-o" onclick="cm('forgot')">Cancelar</button>
-    <button class="btn btn-p" onclick="doForgotPass()">Recuperar</button>
   </div>
 </div></div>
 
@@ -2571,9 +2454,11 @@ function openPro(id){if(!canAdmin()&&!id)return;EID=id||null;
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('pr-fullname',p.fullName);sv('pr-dispname',p.dispName);sv('pr-role',p.role||D.roles[0]);sv('pr-phone',p.phone);sv('pr-email',p.email);sv('pr-comm',p.commission||0);sv('pr-daily',p.daily||0);sv('pr-profile',p.profile||'editor');document.getElementById('pr-color').value=p.color||'#0ea5e9';
   document.getElementById('pr-del').style.display=(id&&canAdmin())?'inline-flex':'none';om('pro');}
-function savePro(){if(!canAdmin())return;const dn=document.getElementById('pr-dispname').value.trim();if(!dn)return;const pass=document.getElementById('pr-pass').value;if(!EID&&!pass){alert('Defina uma senha.');return;}
+function savePro(){if(!canAdmin())return;const dn=document.getElementById('pr-dispname').value.trim();if(!dn)return;
   const gv=id=>document.getElementById(id)?.value||'';
   const fullName=gv('pr-fullname').trim();
+  const email=gv('pr-email').trim().toLowerCase();
+  if(!email){alert('Informe o e-mail Google do profissional — é por ele que o login acontece agora.');return;}
   // Validar duplicatas
   if(isDupName(D.professionals,dn,'dispName',EID)){
     if(!confirm('⚠️ Já existe um profissional com este nome de exibição.\n\nDeseja continuar mesmo assim?'))return;
@@ -2581,7 +2466,9 @@ function savePro(){if(!canAdmin())return;const dn=document.getElementById('pr-di
   if(fullName && isDupName(D.professionals,fullName,'fullName',EID)){
     if(!confirm('⚠️ Já existe um profissional com este nome completo.\n\nDeseja continuar mesmo assim?'))return;
   }
-  const obj={fullName,dispName:dn,role:gv('pr-role'),phone:gv('pr-phone').replace(/\D/g,''),email:gv('pr-email'),commission:+gv('pr-comm'),daily:+gv('pr-daily'),color:gv('pr-color'),profile:gv('pr-profile'),pass:pass||(EID?D.professionals.find(p=>p.id===EID)?.pass:'')};
+  const emailInUse=D.professionals.some(p=>p.id!==EID&&(p.email||'').toLowerCase()===email);
+  if(emailInUse){alert('Esse e-mail já está em uso por outro profissional.');return;}
+  const obj={fullName,dispName:dn,role:gv('pr-role'),phone:gv('pr-phone').replace(/\D/g,''),email,commission:+gv('pr-comm'),daily:+gv('pr-daily'),color:gv('pr-color'),profile:gv('pr-profile')};
   EID?D.professionals=D.professionals.map(p=>p.id===EID?{...obj,id:EID}:p):D.professionals.push({...obj,id:uid()});
   save('professionals');cm('pro');renderProfessionals();}
 function delPro(){if(!canAdmin()||D.professionals.length<=1||!confirm('Excluir?'))return;D.professionals=D.professionals.filter(p=>p.id!==EID);save('professionals');cm('pro');renderProfessionals();}
@@ -3102,7 +2989,7 @@ function clearDemoData() {
 
 // (Backup functions moved to IMPORT/EXPORT section above)
 
-// ─── USER PROFILE & SWITCH ────────────────────────────────
+// ─── USER PROFILE ──────────────────────────────────────────
 function openUserProfile() {
   if (!CU) return;
   document.getElementById('uprof-name').textContent = CU.dispName;
@@ -3119,8 +3006,6 @@ function openUserProfile() {
     photo.style.display = 'none';
     if (letter) letter.style.display = 'block';
   }
-  document.getElementById('uprof-oldpass').value = '';
-  document.getElementById('uprof-newpass').value = '';
   om('uprof');
 }
 
@@ -3157,93 +3042,6 @@ function updateSidebarAvatar() {
     if (img) img.style.display = 'none';
     if (letter) { letter.style.display = 'block'; letter.textContent = CU.dispName.charAt(0).toUpperCase(); }
   }
-}
-
-function changeOwnPass() {
-  const oldPass = document.getElementById('uprof-oldpass').value;
-  const newPass = document.getElementById('uprof-newpass').value;
-  if (!oldPass || !newPass) { alert('Preencha a senha atual e a nova senha.'); return; }
-  if (CU.id === 0) { alert('Usuário master não pode ter senha alterada aqui.'); return; }
-  const pro = D.professionals.find(p => p.id === CU.id);
-  if (!pro || pro.pass !== oldPass) { alert('Senha atual incorreta.'); return; }
-  if (newPass.length < 4) { alert('Nova senha deve ter ao menos 4 caracteres.'); return; }
-  D.professionals = D.professionals.map(p => p.id === CU.id ? {...p, pass: newPass} : p);
-  CU.pass = newPass;
-  save('professionals');
-  alert('✅ Senha alterada com sucesso!');
-  document.getElementById('uprof-oldpass').value = '';
-  document.getElementById('uprof-newpass').value = '';
-}
-
-function switchUser() {
-  const sel = document.getElementById('sw-user');
-  sel.innerHTML = '<option value="">Selecione...</option>' +
-    D.professionals.map(p => `<option value="${p.id}">${p.dispName} — ${p.role}</option>`).join('') +
-    '<option value="dev">🔧 Desenvolvedor</option>';
-  document.getElementById('sw-pass').value = '';
-  document.getElementById('sw-err').style.display = 'none';
-  om('switch');
-}
-
-function doSwitch() {
-  const uid2 = document.getElementById('sw-user').value;
-  const pass = document.getElementById('sw-pass').value;
-  let pro = null;
-  if (uid2 === 'dev') {
-    if (pass !== 'dev1234') { document.getElementById('sw-err').style.display = 'block'; return; }
-    pro = {id:0,fullName:'DESENVOLVEDOR',dispName:'Desenvolvedor',role:'Sistema',phone:'',email:'',color:'#7c3aed',commission:0,daily:0,profile:'dev',pass:'dev1234'};
-  } else {
-    pro = D.professionals.find(p => p.id === +uid2 && p.pass === pass);
-    if (!pro) { document.getElementById('sw-err').style.display = 'block'; return; }
-  }
-  CU = pro;
-  cm('switch');
-  document.getElementById('u-av-letter').textContent = pro.dispName.charAt(0).toUpperCase();
-  document.getElementById('u-name').textContent = pro.dispName;
-  document.getElementById('u-role').textContent = ROLES_LABEL[pro.profile] || pro.profile;
-  document.getElementById('nav-admin').style.display = (canAdmin()) ? 'flex' : 'none';
-  document.getElementById('nav-backup').style.display = (isDev() || canAdmin()) ? 'flex' : 'none';
-  updateSidebarAvatar();
-  applyPermissions();
-  renderDashboard();
-  go('dashboard');
-}
-
-// ─── FORGOT PASSWORD ───────────────────────────────────────
-function showForgotModal() {
-  document.getElementById('forgot-contact').value = '';
-  document.getElementById('forgot-result').style.display = 'none';
-  om('forgot');
-}
-
-function doForgotPass() {
-  const contact = document.getElementById('forgot-contact').value.trim().toLowerCase();
-  if (!contact) { alert('Informe e-mail ou telefone.'); return; }
-  const clean = contact.replace(/\D/g, '');
-  const pro = D.professionals.find(p =>
-    (p.email && p.email.toLowerCase() === contact) ||
-    (p.phone && p.phone.replace(/\D/g,'') === clean)
-  );
-  const result = document.getElementById('forgot-result');
-  result.style.display = 'block';
-  if (!pro) {
-    result.style.background = '#fee2e2'; result.style.color = '#991b1b';
-    result.innerHTML = '❌ Nenhum usuário encontrado com este contato.';
-    return;
-  }
-  // Show WhatsApp/email link with password hint
-  const cfg = D.config || {};
-  const msg = `Olá, ${pro.dispName}! Você solicitou recuperação de acesso ao OdontoGuest.
-
-Sua senha atual é: ${pro.pass}
-
-Acesse o sistema e altere sua senha em Perfil > Alterar Senha.
-
-${cfg.name || 'Equipe OdontoGuest'}`;
-  const wLink = pro.phone ? `<a href="https://wa.me/55${pro.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:#25d366;color:#fff;border-radius:8px;padding:6px 12px;text-decoration:none;font-weight:700;font-size:12px;margin-right:6px">📱 Enviar via WhatsApp</a>` : '';
-  const eLink = pro.email ? `<a href="mailto:${pro.email}?subject=Recuperação de Acesso OdontoGuest&body=${encodeURIComponent(emailBody)}" style="display:inline-flex;align-items:center;gap:5px;background:#0069c2;color:#fff;border-radius:8px;padding:6px 12px;text-decoration:none;font-weight:700;font-size:12px">📧 Enviar por E-mail</a>` : '';
-  result.style.background = '#dcfce7'; result.style.color = '#166534';
-  result.innerHTML = `✅ Usuário encontrado: <b>${pro.dispName}</b><br/><br/>Envie as instruções de acesso:<br/><div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${wLink}${eLink}</div>`;
 }
 
 // ─── PATIENT PHOTOS ────────────────────────────────────────
@@ -3670,18 +3468,6 @@ Local: {clinica}
 
 Aguardamos sua confirmação!
 Atenciosamente, equipe {clinica}`,
-  waPass: `Olá, {nome}! 🔑
-Sua senha de acesso ao OdontoGuest é: {senha}
-
-Acesse e altere sua senha em Perfil > Alterar Senha.
-Equipe {clinica}`,
-  emailPass: `Olá, {nome}!
-
-Sua senha de acesso ao OdontoGuest:
-Senha: {senha}
-
-Acesse o sistema e altere sua senha em Perfil > Alterar Senha.
-Atenciosamente, equipe {clinica}`,
 };
 
 function renderMessages() {
@@ -3689,7 +3475,6 @@ function renderMessages() {
   const sv = (id, key) => { const el=document.getElementById(id); if(el) el.value = msgs[key]||DEFAULT_MSGS[key]||''; };
   sv('msg-wa-confirm','waConfirm'); sv('msg-email-confirm','emailConfirm');
   sv('msg-wa-return','waReturn'); sv('msg-email-return','emailReturn');
-  sv('msg-wa-pass','waPass'); sv('msg-email-pass','emailPass');
 }
 function saveMessages() {
   D.messages = {
@@ -3697,8 +3482,6 @@ function saveMessages() {
     emailConfirm: document.getElementById('msg-email-confirm')?.value||'',
     waReturn:     document.getElementById('msg-wa-return')?.value||'',
     emailReturn:  document.getElementById('msg-email-return')?.value||'',
-    waPass:       document.getElementById('msg-wa-pass')?.value||'',
-    emailPass:    document.getElementById('msg-email-pass')?.value||'',
   };
   save('messages');
   alert('✅ Modelos salvos!');
@@ -5172,7 +4955,7 @@ document.addEventListener('keydown',e=>{
 });
 loadData();
 initMulticlinic();
-buildLoginSel();
+initGoogleLogin();
 // Try auto-login from saved session
 if(!checkAutoLogin()){
   // Show login screen normally
