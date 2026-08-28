@@ -23,6 +23,29 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦷</text></svg>"/>
 <link rel="manifest" href="manifest.json"/>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCY81MN3nIvA68UMBmblsoogNaNuLH1CT0",
+  authDomain: "odontoguest-app.firebaseapp.com",
+  projectId: "odontoguest-app",
+  storageBucket: "odontoguest-app.firebasestorage.app",
+  messagingSenderId: "451256540720",
+  appId: "1:451256540720:web:015f54b4251eb65c7297f5"
+};
+
+const _fbApp = initializeApp(FIREBASE_CONFIG);
+window._fbAuth = getAuth(_fbApp);
+
+window._fbSignInWithCustomToken = async function(token){
+  await signInWithCustomToken(window._fbAuth, token);
+};
+window._fbSignOut = async function(){
+  try{ await signOut(window._fbAuth); }catch(e){ console.warn('[Firebase] signOut', e.message); }
+};
+</script>
 <meta name="theme-color" content="#0c6e9e"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -1286,6 +1309,10 @@ async function onGoogleToken(tokenResponse){
       if(errEl){ errEl.textContent='Sua conta Google ('+email+') não está autorizada a acessar o OdontoGuest.'; errEl.style.display='block'; }
       return;
     }
+    if(data.firebaseToken && window._fbSignInWithCustomToken){
+      try{ await window._fbSignInWithCustomToken(data.firebaseToken); }
+      catch(e){ console.warn('[OdontoGuest] Firebase Auth falhou (login local segue funcionando):', e); }
+    }
     localStorage.setItem('og3_session', JSON.stringify({id:pro.id, ts:Date.now()}));
     enterApp(pro);
   }catch(e){
@@ -1332,6 +1359,7 @@ function enterApp(pro){
 function doLogout(){
   // Logout explícito: limpar sessão do localStorage
   localStorage.removeItem('og3_session');
+  if(window._fbSignOut) window._fbSignOut();
   console.log('[OdontoGuest] Logout realizado pelo usuário.');
   CU=null;
   document.getElementById('login-screen').style.display='flex';
