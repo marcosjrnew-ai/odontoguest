@@ -5253,6 +5253,28 @@ setTimeout(()=>{if(document.getElementById('app').style.display!=='none')checkFi
   <button onclick="location.reload()" style="background:#38b6f0;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-weight:700;font-size:12px;cursor:pointer">Atualizar</button>
 </div>
 
+<!-- Alerta proativo de instalação (Android/desktop com beforeinstallprompt) -->
+<div id="pwa-install-alert" style="display:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;background:#fff;border-radius:16px;padding:20px;width:min(360px,calc(100vw - 32px));box-shadow:0 12px 40px rgba(0,0,0,.3);font-family:'DM Sans',sans-serif">
+  <div style="display:flex;gap:14px;align-items:flex-start">
+    <div style="font-size:2rem;flex-shrink:0">📲</div>
+    <div>
+      <div style="font-size:15px;font-weight:800;color:var(--t1,#0d1b2a);margin-bottom:4px">Instale o OdontoGuest</div>
+      <div style="font-size:12.5px;color:var(--t3,#7a8fa6);line-height:1.5">Acesso mais rápido, ícone na tela inicial e funciona offline.</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:14px">
+    <button onclick="_pwaInstalarAgora()" style="flex:1;padding:10px;background:var(--P,#0c6e9e);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">Instalar agora</button>
+    <button onclick="_pwaAdiarInstalacao()" style="flex:1;padding:10px;background:#f1f5f9;color:var(--t2,#3a4a5c);border:1.5px solid var(--border,#dde3ec);border-radius:10px;font-size:13px;cursor:pointer">Agora não</button>
+  </div>
+</div>
+
+<!-- Banner de instalação para iPhone (Safari não dispara beforeinstallprompt) -->
+<div id="pwa-ios-banner" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#0d2137;color:#fff;padding:14px 16px 20px;box-shadow:0 -2px 16px rgba(0,0,0,.35);font-family:'DM Sans',sans-serif;font-size:13px">
+  <button onclick="_pwaFecharBannerIOS()" style="position:absolute;top:8px;right:12px;background:none;border:none;color:rgba(255,255,255,.6);font-size:18px;cursor:pointer;line-height:1">✕</button>
+  <div style="font-weight:800;margin-bottom:4px">📲 Instale o OdontoGuest no iPhone</div>
+  <div style="color:rgba(255,255,255,.75);line-height:1.5">Toque em compartilhar <span style="font-weight:700">▤↑</span> e depois em "Adicionar à Tela de Início".</div>
+</div>
+
 <script>
 // ═══ PWA: registro do service worker, prompt de instalação e aviso de atualização ═══
 (function(){
@@ -5273,25 +5295,79 @@ setTimeout(()=>{if(document.getElementById('app').style.display!=='none')checkFi
     });
   }
 
+  function pwaJaInstalado(){
+    return window.navigator.standalone === true
+      || window.matchMedia('(display-mode: standalone)').matches
+      || !!localStorage.getItem('og3_pwa_instalado');
+  }
+  function pwaMarcarInstalado(){ localStorage.setItem('og3_pwa_instalado','1'); }
+  function pwaMarcarRecusado(){ localStorage.setItem('og3_pwa_recusou', String(Date.now())); }
+
   var deferredPrompt = null;
   var installBtn = document.getElementById('pwa-install-btn');
+  var alertBox = document.getElementById('pwa-install-alert');
+
+  window._pwaInstalarAgora = function(){
+    if(alertBox) alertBox.style.display = 'none';
+    if(!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function(r){
+      if(r.outcome === 'accepted') pwaMarcarInstalado(); else pwaMarcarRecusado();
+      deferredPrompt = null;
+    });
+  };
+  window._pwaAdiarInstalacao = function(){
+    if(alertBox) alertBox.style.display = 'none';
+    pwaMarcarRecusado();
+  };
+  window._pwaFecharBannerIOS = function(){
+    var b = document.getElementById('pwa-ios-banner');
+    if(b) b.style.display = 'none';
+    pwaMarcarRecusado();
+  };
+
   window.addEventListener('beforeinstallprompt', function(e){
     e.preventDefault();
     deferredPrompt = e;
     if(installBtn) installBtn.style.display = 'flex';
+
+    if(pwaJaInstalado()) return;
+    var recusou = parseInt(localStorage.getItem('og3_pwa_recusou') || '0');
+    if(recusou && Date.now() - recusou < 2 * 86400000) return; // silêncio de 2 dias após dispensar
+    setTimeout(function(){
+      if(deferredPrompt && alertBox) alertBox.style.display = 'block';
+    }, 2000);
   });
+
   if(installBtn){
     installBtn.addEventListener('click', function(){
       installBtn.style.display = 'none';
       if(!deferredPrompt) return;
       deferredPrompt.prompt();
-      deferredPrompt.userChoice.finally(function(){ deferredPrompt = null; });
+      deferredPrompt.userChoice.then(function(r){
+        if(r.outcome === 'accepted') pwaMarcarInstalado();
+        deferredPrompt = null;
+      });
     });
   }
   window.addEventListener('appinstalled', function(){
     if(installBtn) installBtn.style.display = 'none';
+    if(alertBox) alertBox.style.display = 'none';
+    pwaMarcarInstalado();
     deferredPrompt = null;
   });
+
+  // iOS/Safari: não existe beforeinstallprompt, então mostramos instruções manuais.
+  var ua = window.navigator.userAgent;
+  var isIOS = /iPad|iPhone|iPod/.test(ua);
+  var isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+  if(isIOS && isSafari && !pwaJaInstalado()){
+    var recusouIOS = parseInt(localStorage.getItem('og3_pwa_recusou') || '0');
+    if(!recusouIOS || Date.now() - recusouIOS >= 2 * 86400000){
+      var iosBanner = document.getElementById('pwa-ios-banner');
+      if(iosBanner) setTimeout(function(){ iosBanner.style.display = 'block'; }, 2000);
+    }
+  }
 })();
 </script>
 </body>
