@@ -3274,24 +3274,33 @@ function openUserProfile() {
   om('uprof');
 }
 
+// Alvo de compressão pras fotos (paciente/perfil): 500KB de dado bruto antes do
+// base64 (~666KB depois de convertido) — cabe com folga no limite de 1MB por
+// documento do Firestore mesmo somado ao resto dos campos do registro. Sem
+// isso, uma foto de celular direto (3-8MB) faz a gravação no Firestore falhar
+// silenciosamente (só um console.warn) — a foto fica só no navegador de quem
+// tirou, nunca sincroniza pros outros dispositivos/profissionais.
+const PHOTO_MAX_RAW_SIZE = 500 * 1024;
+
 function handleProfilePhoto(evt) {
   const file = evt.target.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    const dataUrl = e.target.result;
-    // Save to professional record
-    if (CU.id !== 0) {
-      D.professionals = D.professionals.map(p => p.id === CU.id ? {...p, photo: dataUrl} : p);
-      CU.photo = dataUrl;
-      save('professionals');
-    }
-    // Update UI
-    const photo = document.getElementById('uprof-photo');
-    const letter = document.getElementById('uprof-letter');
-    photo.src = dataUrl; photo.style.display = 'block';
-    if (letter) letter.style.display = 'none';
-    // Update sidebar avatar
-    updateSidebarAvatar();
+    compressImage(e.target.result, PHOTO_MAX_RAW_SIZE, dataUrl => {
+      // Save to professional record
+      if (CU.id !== 0) {
+        D.professionals = D.professionals.map(p => p.id === CU.id ? {...p, photo: dataUrl} : p);
+        CU.photo = dataUrl;
+        save('professionals');
+      }
+      // Update UI
+      const photo = document.getElementById('uprof-photo');
+      const letter = document.getElementById('uprof-letter');
+      photo.src = dataUrl; photo.style.display = 'block';
+      if (letter) letter.style.display = 'none';
+      // Update sidebar avatar
+      updateSidebarAvatar();
+    });
   };
   reader.readAsDataURL(file);
 }
@@ -3316,11 +3325,13 @@ function handlePatPhoto(evt) {
   const file = evt.target.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    tempPatPhoto = e.target.result;
-    const preview = document.getElementById('pt-photo-preview');
-    const icon = document.getElementById('pt-photo-icon');
-    preview.src = tempPatPhoto; preview.style.display = 'block';
-    if (icon) icon.style.display = 'none';
+    compressImage(e.target.result, PHOTO_MAX_RAW_SIZE, compressed => {
+      tempPatPhoto = compressed;
+      const preview = document.getElementById('pt-photo-preview');
+      const icon = document.getElementById('pt-photo-icon');
+      preview.src = tempPatPhoto; preview.style.display = 'block';
+      if (icon) icon.style.display = 'none';
+    });
   };
   reader.readAsDataURL(file);
 }
@@ -3425,7 +3436,15 @@ function compressImage(dataUrl, maxSize, callback) {
 
 function handleAttachmentUpload(evt) {
   const files = Array.from(evt.target.files);
-  const maxSize = 1024 * 1024; // 1MB
+  // 300KB de dado bruto (~400KB em base64) por anexo — não 1MB. Um "visit" no
+  // Firestore é 1 documento só (limite de 1MB), com o array de anexos inteiro
+  // dentro dele; 1MB por anexo já estouraria o documento sozinho, e a maioria
+  // dos atendimentos tem mais de 1 anexo (várias fotos/raio-x do mesmo caso).
+  // Mesmo assim, MUITOS anexos grandes no mesmo atendimento ainda podem
+  // estourar o limite — isso só se resolve de vez guardando anexo em
+  // documento próprio (Fase 4 do roadmap), não dá pra garantir só com
+  // compressão.
+  const maxSize = 300 * 1024;
   let processed = 0;
 
   files.forEach(file => {
