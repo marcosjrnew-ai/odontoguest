@@ -407,28 +407,6 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 .btn-wa{background:#25d366;color:#fff}.btn-wa:hover{background:#1fb855}
 .btn-email-send{background:#0069c2;color:#fff}.btn-email-send:hover{background:#005299}
 
-/* ═══ ONBOARDING TOUR ═══ */
-.onb-overlay{position:fixed;inset:0;z-index:10000;pointer-events:auto;transition:opacity .4s}
-.onb-backdrop{position:fixed;inset:0;background:rgba(10,20,35,.65);z-index:10000;transition:opacity .4s}
-.onb-highlight-box{position:fixed;z-index:10001;border-radius:14px;box-shadow:0 0 0 4px #38b6f0,0 0 0 9999px rgba(10,20,35,.65);transition:all .5s cubic-bezier(.4,0,.2,1);pointer-events:none}
-.onb-tooltip{position:fixed;z-index:10002;background:#fff;border-radius:16px;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.25);max-width:360px;min-width:280px;transition:all .5s cubic-bezier(.4,0,.2,1);opacity:0;transform:translateY(12px)}
-.onb-tooltip.visible{opacity:1;transform:translateY(0)}
-.onb-tooltip-arrow{position:absolute;width:0;height:0}
-.onb-tooltip-arrow.top{top:-8px;left:30px;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:8px solid #fff}
-.onb-tooltip-arrow.bottom{bottom:-8px;left:30px;border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid #fff}
-.onb-step-num{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--P);color:#fff;font-size:12px;font-weight:800;margin-right:8px}
-.onb-title{font-family:'Sora',sans-serif;font-size:16px;font-weight:800;color:var(--t1);margin-bottom:8px;display:flex;align-items:center}
-.onb-desc{font-size:13.5px;color:var(--t2);line-height:1.5;margin-bottom:16px}
-.onb-footer{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.onb-dots{display:flex;gap:5px}
-.onb-dot{width:8px;height:8px;border-radius:50%;background:#dde3ec;transition:all .3s}
-.onb-dot.active{background:var(--P);width:20px;border-radius:4px}
-.onb-welcome{position:fixed;inset:0;z-index:10010;background:rgba(10,20,35,.7);display:flex;align-items:center;justify-content:center;animation:onbFadeIn .4s}
-.onb-welcome-box{background:#fff;border-radius:24px;padding:40px;max-width:440px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3);animation:onbSlideUp .5s}
-@keyframes onbFadeIn{from{opacity:0}to{opacity:1}}
-@keyframes onbSlideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
-.onb-progress-bar{height:4px;background:#e0f4ff;border-radius:2px;margin:12px 0 0;overflow:hidden}
-.onb-progress-fill{height:100%;background:linear-gradient(90deg,var(--P),var(--Pm));border-radius:2px;transition:width .4s}
 
 </style>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -674,7 +652,6 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 
 <!-- ADMIN -->
 <div id="page-admin" class="page">
-  <div style="margin-bottom:12px"><button class="btn btn-o btn-sm" onclick="startOnboarding(true)">🎓 Reativar Tour de Introdução</button></div>
   <div class="row-flex"><div><div class="s-title">Administração</div><div class="s-sub">Usuários, cargos e configurações</div></div></div>
   <div class="g2">
     <div class="card"><div class="card-hd"><span class="nav-icon" data-ico="professionals"></span> Usuários</div><div id="admin-users"></div></div>
@@ -5201,139 +5178,6 @@ function renderClinics(){
   }).join('')||'<div class="card" style="color:var(--t3)">Nenhuma clínica cadastrada.</div>';
 }
 
-// ═══════════════════════════════════════════════════════════════
-// FEATURE 3: TUTORIAL ONBOARDING
-// ═══════════════════════════════════════════════════════════════
-const ONB_STEPS=[
-  {target:'button[onclick*="go(\'patients\')"]',page:'patients',title:'Adicionar Pacientes',desc:'Comece cadastrando seus pacientes. Clique aqui para acessar a lista de pacientes e use o botão "+ Novo" para adicionar. Preencha nome, CPF, contato e dados clínicos.',icon:'👤'},
-  {target:'button[onclick*="go(\'records\')"]',page:'records',title:'Criar Prontuário',desc:'Registre atendimentos detalhados. Selecione o paciente, adicione evolução clínica, odontograma e materiais utilizados.',icon:'📋'},
-  {target:'button[onclick*="go(\'budgets\')"]',page:'budgets',title:'Fazer Orçamentos',desc:'Crie orçamentos profissionais para seus pacientes. Adicione procedimentos, aplique descontos e compartilhe via WhatsApp ou imprima.',icon:'📄'},
-  {target:'#nav-admin',page:'admin',title:'Configurações',desc:'Personalize o sistema: configure dados da clínica, gerencie profissionais, ajuste procedimentos e valores. Explore as notificações e gestão de clínicas!',icon:'⚙️',forceShow:true},
-];
-let onbStep=0;let onbActive=false;
-
-function checkFirstAccess(){
-  if(localStorage.getItem('og3_onb_done'))return;
-  setTimeout(()=>showOnbWelcome(),800);
-}
-
-function showOnbWelcome(){
-  const wrap=document.getElementById('onb-welcome-wrap');
-  if(!wrap)return;
-  wrap.style.display='block';
-  wrap.innerHTML=`<div class="onb-welcome">
-    <div class="onb-welcome-box">
-      <div style="font-size:48px;margin-bottom:12px">🦷</div>
-      <div style="font-family:'Sora',sans-serif;font-size:22px;font-weight:800;color:var(--P);margin-bottom:6px">Bem-vindo ao OdontoGuest!</div>
-      <div style="font-size:14px;color:var(--t2);margin-bottom:20px;line-height:1.5">
-        Seu sistema completo de gestão odontológica.<br>
-        Gostaria de fazer um tour rápido para conhecer as funcionalidades principais?
-      </div>
-      <div style="display:flex;gap:10px;justify-content:center">
-        <button class="btn btn-o" onclick="skipOnboarding()" style="min-width:100px">Pular</button>
-        <button class="btn btn-p" onclick="startOnboardingTour()" style="min-width:140px">🎓 Fazer Tour</button>
-      </div>
-    </div>
-  </div>`;
-}
-
-function skipOnboarding(){
-  localStorage.setItem('og3_onb_done','1');
-  document.getElementById('onb-welcome-wrap').style.display='none';
-  endOnboarding();
-}
-
-function startOnboarding(force){
-  if(force)localStorage.removeItem('og3_onb_done');
-  showOnbWelcome();
-}
-
-function startOnboardingTour(){
-  document.getElementById('onb-welcome-wrap').style.display='none';
-  onbStep=0;onbActive=true;
-  showOnbStep();
-}
-
-function showOnbStep(){
-  if(onbStep>=ONB_STEPS.length){endOnboarding();return;}
-  const step=ONB_STEPS[onbStep];
-  const highlight=document.getElementById('onb-highlight');
-  const tooltip=document.getElementById('onb-tooltip');
-  
-  // Force show admin button if needed
-  if(step.forceShow){
-    const adminBtn=document.getElementById('nav-admin');
-    if(adminBtn)adminBtn.style.display='flex';
-  }
-
-  let target=document.querySelector(step.target);
-  if(!target){
-    // Try next step
-    onbStep++;showOnbStep();return;
-  }
-  
-  const rect=target.getBoundingClientRect();
-  const pad=8;
-  
-  // Position highlight
-  highlight.style.display='block';
-  highlight.style.left=(rect.left-pad)+'px';
-  highlight.style.top=(rect.top-pad)+'px';
-  highlight.style.width=(rect.width+pad*2)+'px';
-  highlight.style.height=(rect.height+pad*2)+'px';
-  
-  // Build tooltip
-  const progress=((onbStep+1)/ONB_STEPS.length)*100;
-  const dots=ONB_STEPS.map((_,i)=>`<div class="onb-dot${i===onbStep?' active':''}"></div>`).join('');
-  
-  tooltip.innerHTML=`
-    <div class="onb-tooltip-arrow top"></div>
-    <div class="onb-title"><span class="onb-step-num">${onbStep+1}</span>${step.icon} ${step.title}</div>
-    <div class="onb-desc">${step.desc}</div>
-    <div class="onb-progress-bar"><div class="onb-progress-fill" style="width:${progress}%"></div></div>
-    <div class="onb-footer" style="margin-top:12px">
-      <div class="onb-dots">${dots}</div>
-      <div style="display:flex;gap:6px">
-        ${onbStep>0?'<button class="btn btn-o btn-sm" onclick="prevOnbStep()">← Anterior</button>':''}
-        <button class="btn btn-o btn-sm" onclick="skipOnboarding()">Pular</button>
-        <button class="btn btn-p btn-sm" onclick="nextOnbStep()">${onbStep===ONB_STEPS.length-1?'✅ Concluir':'Próximo →'}</button>
-      </div>
-    </div>`;
-  
-  // Position tooltip below highlight
-  tooltip.style.display='block';
-  tooltip.classList.remove('visible');
-  let ttTop=rect.bottom+pad+12;
-  let ttLeft=Math.max(10,rect.left-20);
-  if(ttLeft+360>window.innerWidth)ttLeft=window.innerWidth-370;
-  if(ttTop+200>window.innerHeight){
-    ttTop=rect.top-pad-220;
-    tooltip.querySelector('.onb-tooltip-arrow').className='onb-tooltip-arrow bottom';
-  }
-  tooltip.style.top=ttTop+'px';
-  tooltip.style.left=ttLeft+'px';
-  
-  requestAnimationFrame(()=>tooltip.classList.add('visible'));
-}
-
-function nextOnbStep(){
-  onbStep++;
-  if(onbStep>=ONB_STEPS.length){endOnboarding();return;}
-  showOnbStep();
-}
-function prevOnbStep(){if(onbStep>0){onbStep--;showOnbStep();}}
-
-function endOnboarding(){
-  onbActive=false;
-  localStorage.setItem('og3_onb_done','1');
-  const h=document.getElementById('onb-highlight');
-  const t=document.getElementById('onb-tooltip');
-  const w=document.getElementById('onb-welcome-wrap');
-  if(h)h.style.display='none';
-  if(t){t.style.display='none';t.classList.remove('visible');}
-  if(w)w.style.display='none';
-}
-
 // Override save to also save to clinic namespace.
 // IMPORTANT: this must be a plain reassignment (save = function...), not a
 // `function save(k){}` declaration — a second declaration with the same name
@@ -5361,7 +5205,6 @@ if(!checkAutoLogin()){
   // Show login screen normally
   document.getElementById('login-screen').style.display='flex';
 }
-setTimeout(()=>{if(document.getElementById('app').style.display!=='none')checkFirstAccess();},1500);
 </script>
 
 <!-- USER PROFILE MODAL -->
@@ -5464,11 +5307,6 @@ setTimeout(()=>{if(document.getElementById('app').style.display!=='none')checkFi
     <button class="btn btn-p" onclick="saveNotifConfig()">💾 Salvar Configurações</button>
   </div>
 </div></div>
-
-<!-- ═══ ONBOARDING TOUR CONTAINER ═══ -->
-<div id="onb-welcome-wrap" style="display:none"></div>
-<div id="onb-highlight" class="onb-highlight-box" style="display:none"></div>
-<div id="onb-tooltip" class="onb-tooltip" style="display:none"></div>
 
 <!-- COPYRIGHT -->
 <div style="display:none" id="og-copyright" aria-hidden="true">© 2026 OdontoGuest. Todos os direitos reservados. Protegido pela Lei 9.610/1998. Uso não autorizado é proibido.</div>
