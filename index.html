@@ -1712,6 +1712,21 @@ function cm(n){document.getElementById('m-'+n).style.display='none';EID=null;if(
 function om(n){document.getElementById('m-'+n).style.display='flex';}
 
 // ─── DASHBOARD ─────────────────────────────────────────────
+// Compara, por dia+profissional, o custo de aluguel lançado (Outros Pagamentos, tipo "rent")
+// contra o ganho real com pacientes naquele mesmo dia (D.visits pagas) — usado no alerta do
+// dashboard (Fase C do roadmap da mudança de modelo do consultório, ver CLAUDE.md).
+function getRentLossAlerts(){
+  const rentByKey={};
+  D.otherPayments.filter(o=>o.type==='rent'&&o.professionalId).forEach(o=>{
+    const key=o.date+'|'+o.professionalId;
+    rentByKey[key]=(rentByKey[key]||0)+(o.val||0);
+  });
+  return Object.entries(rentByKey).map(([key,rentCost])=>{
+    const[date,proId]=key.split('|');
+    const earned=D.visits.filter(v=>v.date===date&&v.professionalId===+proId).reduce((s,v)=>s+(v.paid||0),0);
+    return{date,professionalId:+proId,rentCost,earned,loss:rentCost-earned};
+  }).filter(x=>x.loss>0).sort((a,b)=>b.date.localeCompare(a.date));
+}
 function renderDashboard(){
   const t=today(),todayApts=D.appointments.filter(a=>a.date===t);
   const todayPaid=todayApts.filter(a=>a.payst==='paid').reduce((s,a)=>s+(a.finalVal||0),0);
@@ -1725,6 +1740,15 @@ function renderDashboard(){
   let al='';
   if(expSoon.length) al+=`<div class="alert-banner" style="background:#fff3cd;border:1.5px solid #ffc107;color:#856404">⚠️ <b>${expSoon.length} item(ns) com validade próxima:</b> ${expSoon.map(s=>s.name).join(', ')}</div>`;
   if(pendRets.length) al+=`<div class="alert-banner" style="background:#d1fae5;border:1.5px solid #6ee7b7;color:#065f46">🔁 <b>${pendRets.length} retorno(s)</b> nos próximos 14 dias</div>`;
+  const rentLosses=getRentLossAlerts();
+  if(rentLosses.length){
+    const totalLoss=rentLosses.reduce((s,x)=>s+x.loss,0);
+    const detail=rentLosses.slice(0,3).map(x=>{
+      const pr=getPro(x.professionalId);
+      return`${new Date(x.date+'T00:00:00').toLocaleDateString('pt-BR')} (${pr.dispName?.split(' ')[0]}): aluguel ${fmt(x.rentCost)} vs. ganho ${fmt(x.earned)}`;
+    }).join(' · ');
+    al+=`<div class="alert-banner" style="background:#fee2e2;border:1.5px solid #fca5a5;color:#991b1b">📉 <b>${rentLosses.length} dia(s) com prejuízo</b> — aluguel maior que o ganho com pacientes (total ${fmt(totalLoss)}): ${detail}${rentLosses.length>3?'...':''}</div>`;
+  }
   document.getElementById('dash-alerts').innerHTML=al;
   document.getElementById('dash-stats').innerHTML=[
     {l:"Hoje",v:todayApts.length,s:todayApts.filter(a=>a.status==='confirmed').length+' conf.',c:"#0ea5e9",i:"agenda"},
