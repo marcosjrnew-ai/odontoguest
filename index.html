@@ -1616,30 +1616,51 @@ const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 let _gcalTokenClient = null;
 let _gcalToken = null; // {access_token, expiresAt}
 
-function _initGCalTokenClient(callback){
-  if(!window.google || !google.accounts || !google.accounts.oauth2){ setTimeout(()=>_initGCalTokenClient(callback), 300); return; }
-  if(!_gcalTokenClient){
-    _gcalTokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: GOOGLE_CALENDAR_SCOPE,
-      callback: resp=>{ if(_gcalTokenClient._cb) _gcalTokenClient._cb(resp); }
-    });
-  }
-  _gcalTokenClient._cb = callback;
+// Retorna uma Promise do próprio cliente GIS, só resolvendo quando ele já existir de verdade —
+// sem atraso fixo "chutado" (bug real corrigido em 28/08/2026: um setTimeout de 350ms chamava
+// requestAccessToken antes do cliente terminar de ser criado em alguns casos, então o pedido de
+// token simplesmente não saía — nem sucesso nem erro, a Promise ficava presa pra sempre. Isso
+// fazia criar funcionar (token já em memória, recém-conectado) mas editar/excluir travarem
+// silenciosamente, sem log nenhum, quando precisavam pedir um token novo).
+function _initGCalTokenClient(){
+  return new Promise(resolve=>{
+    (function poll(){
+      if(!window.google || !google.accounts || !google.accounts.oauth2){ setTimeout(poll, 300); return; }
+      if(!_gcalTokenClient){
+        _gcalTokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: GOOGLE_CALENDAR_SCOPE,
+          callback: resp=>{ if(_gcalTokenClient._cb) _gcalTokenClient._cb(resp); }
+        });
+      }
+      resolve(_gcalTokenClient);
+    })();
+  });
+}
+function _requestGCalToken(promptMode){
+  const tokenPromise=_initGCalTokenClient().then(client=>new Promise((resolve,reject)=>{
+    client._cb = tokenResponse=>{
+      if(!tokenResponse || tokenResponse.error){ reject(new Error((tokenResponse&&tokenResponse.error)||'sem token do Google Calendar')); return; }
+      _gcalToken = {access_token:tokenResponse.access_token, expiresAt:Date.now()+((tokenResponse.expires_in||3600)*1000)-60000};
+      resolve(_gcalToken.access_token);
+    };
+    client.requestAccessToken({prompt:promptMode});
+  }));
+  // Rede de segurança: se por algum motivo o Google nunca chamar o callback (ex.: navegador
+  // bloqueando o mecanismo silencioso), desiste depois de 10s em vez de travar pra sempre.
+  const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('tempo esgotado esperando o Google Calendar')),10000));
+  return Promise.race([tokenPromise,timeout]);
 }
 function connectGoogleCalendar(){
   if(!CU) return;
-  _initGCalTokenClient(tokenResponse=>{
-    if(!tokenResponse || tokenResponse.error){ alert('Não foi possível conectar ao Google Calendar.'); return; }
-    _gcalToken = {access_token:tokenResponse.access_token, expiresAt:Date.now()+((tokenResponse.expires_in||3600)*1000)-60000};
+  _requestGCalToken('consent').then(()=>{
     D.professionals = D.professionals.map(p=>p.id===CU.id ? {...p, googleCalendarSync:true} : p);
     CU.googleCalendarSync = true;
     save('professionals');
     updateGCalUI();
     syncPendingGCalEvents();
     alert('Google Calendar conectado! Seus próximos agendamentos serão sincronizados automaticamente.');
-  });
-  setTimeout(()=>{ if(_gcalTokenClient) _gcalTokenClient.requestAccessToken({prompt:'consent'}); }, 350);
+  }).catch(e=>{ console.warn('[GCal] falha ao conectar:', e.message); alert('Não foi possível conectar ao Google Calendar.'); });
 }
 function disconnectGoogleCalendar(){
   if(!CU) return;
@@ -1659,15 +1680,8 @@ function updateGCalUI(){
   if(disconnectBtn) disconnectBtn.style.display = on ? 'inline-flex' : 'none';
 }
 function _ensureGCalToken(){
-  return new Promise((resolve,reject)=>{
-    if(_gcalToken && _gcalToken.expiresAt>Date.now()){ resolve(_gcalToken.access_token); return; }
-    _initGCalTokenClient(tokenResponse=>{
-      if(!tokenResponse || tokenResponse.error){ reject(new Error('sem token do Google Calendar')); return; }
-      _gcalToken = {access_token:tokenResponse.access_token, expiresAt:Date.now()+((tokenResponse.expires_in||3600)*1000)-60000};
-      resolve(_gcalToken.access_token);
-    });
-    setTimeout(()=>{ if(_gcalTokenClient) _gcalTokenClient.requestAccessToken({prompt:''}); }, 350);
-  });
+  if(_gcalToken && _gcalToken.expiresAt>Date.now()) return Promise.resolve(_gcalToken.access_token);
+  return _requestGCalToken('');
 }
 async function syncApptToGoogleCalendar(apt){
   if(!apt || !CU || !CU.googleCalendarSync || apt.professionalId!==CU.id) return;
