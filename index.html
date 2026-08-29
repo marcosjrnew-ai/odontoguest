@@ -789,6 +789,8 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
         <div><label>Endereço</label><input class="inp" id="cfg-addr"/></div>
         <div><label>CRO (profissional responsável)</label><input class="inp" id="cfg-cro" placeholder="Ex: CRO/RJ: 34449"/></div>
         <div><label>CPF/CNPJ (para recibos e Carnê-Leão)</label><input class="inp" id="cfg-taxid" placeholder="Ex: 123.456.789-00"/></div>
+        <div><label>Link de Avaliação do Google</label><input class="inp" id="cfg-review-link" placeholder="Ex: https://g.page/r/xxxxxxxx/review"/>
+          <div style="font-size:11px;color:#94a3b8;margin-top:3px">No Google Meu Negócio: "Peça avaliações" → copiar link. Usado no botão "Pedir Avaliação" do prontuário.</div></div>
         <div class="g2" style="gap:9px">
           <div><label>Logo do Consultório</label>
             <div style="display:flex;align-items:center;gap:10px">
@@ -1630,7 +1632,7 @@ suppliers:[],
 prescriptions:[],
 receipts:[],
 roles:["Dentista","Endodontista","Ortodontista","Implantodontista","Periodontista","Técnico","Auxiliar","Secretária","Recepcionista"],
-config:{name:"Consultório OdontoGuest",phone:"",addr:"",cro:"",taxId:"",logo:"",accentColor:"#0c6e9e"},
+config:{name:"Consultório OdontoGuest",phone:"",addr:"",cro:"",taxId:"",logo:"",accentColor:"#0c6e9e",googleReviewLink:""},
 procs:DEF_PROCS,
 };
 
@@ -2510,6 +2512,7 @@ function renderRecords(forcePatId){
               <span class="badge" style="background:${pr.color}22;color:${pr.color}">${pr.dispName?.split(' ').pop()}</span>
               ${vComm>0?`<span class="badge" style="background:#dcfce7;color:#166534">💰 ${fmt(vComm)} (${pr.commission}%)</span>`:''}
               ${v.attachments&&v.attachments.length?`<span class="att-counter">📎 ${v.attachments.length}</span>`:''}
+              ${p.phone?`<button class="btn btn-sm btn-wa" onclick="askReview(${patId})" title="Pedir avaliação no Google via WhatsApp">⭐ Avaliação</button>`:''}
               ${canEdit()||canAdmin()?`<button class="btn btn-o btn-sm" onclick="openAuditLog(${v.id})" title="Histórico de alterações" style="font-size:11px">📜</button>`:''} ${canEdit()?`<button class="btn btn-o btn-sm" onclick="editVisit(${v.id})">✏️ Editar</button>`:''}
             </div>
           </div>
@@ -3417,6 +3420,14 @@ function saveRet(){
 function delRet(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.returns.find(r=>r.id===EID);if(obj)logDeletion('return',obj);D.returns=D.returns.filter(r=>r.id!==EID);save('returns');cm('ret');renderReturns();}
 function shareRetWhatsApp(){const patId=+document.getElementById('ret-pat').value,p=getPat(patId),date=document.getElementById('ret-date').value,obs=document.getElementById('ret-obs').value,cfg=D.config||{};const msg=`Olá, ${patDisp(patId)}! 😊\nGostaríamos de lembrá-lo(a) do seu retorno:\n📅 ${new Date(date+'T00:00:00').toLocaleDateString('pt-BR')}\n🔁 ${obs}\n📍 ${cfg.name||'Consultório'}\n\nPor favor, confirme! Obrigado!`;const link=wa(p.phone,msg);if(link)window.open(link,'_blank');else alert('Telefone não cadastrado.');}
 function shareRetEmail(){const patId=+document.getElementById('ret-pat').value,p=getPat(patId),date=document.getElementById('ret-date').value,obs=document.getElementById('ret-obs').value,cfg=D.config||{};const subj=`Lembrete de Retorno — ${cfg.name||'Consultório'}`;const body=`Olá, ${patDisp(patId)}!\n\nLembrete do seu retorno:\nData: ${new Date(date+'T00:00:00').toLocaleDateString('pt-BR')}\nMotivo: ${obs}\nLocal: ${cfg.name||'Consultório'}\n\nAguardamos sua confirmação!\n${CU?.dispName||''}`;const link=emailLink(p.email,subj,body);if(link)window.open(link,'_blank');else alert('E-mail não cadastrado.');}
+function askReview(patientId){
+  const cfg=D.config||{};
+  if(!cfg.googleReviewLink){alert('Cadastre o "Link de Avaliação do Google" em Admin → Configurações antes de usar este botão.');return;}
+  const p=getPat(patientId);
+  const msg=`Olá, ${patDisp(patientId)}! 😊\nFoi um prazer cuidar do seu sorriso! Se puder, deixe uma avaliação rápida sobre o atendimento — isso ajuda muito o ${cfg.name||'nosso consultório'}:\n${cfg.googleReviewLink}\n\nObrigado! 🦷`;
+  const link=wa(p.phone,msg);
+  if(link)window.open(link,'_blank');else alert('Paciente sem WhatsApp cadastrado.');
+}
 function renderReturns(){
   const list=[...D.returns].sort((a,b)=>a.date.localeCompare(b.date));
   const stM={pending:{bg:"#fef3c7",c:"#92400e",l:"Pendente"},done:{bg:"#dcfce7",c:"#166534",l:"Realizado"},cancelled:{bg:"#f3f4f6",c:"#6b7280",l:"Cancelado"}};
@@ -3787,13 +3798,13 @@ function renderAdmin(){
     </div>`).join('');
   const cfg=D.config||{};
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
-  sv('cfg-name',cfg.name);sv('cfg-phone',cfg.phone);sv('cfg-addr',cfg.addr);sv('cfg-cro',cfg.cro);sv('cfg-taxid',cfg.taxId);sv('cfg-color',cfg.accentColor||'#0c6e9e');
+  sv('cfg-name',cfg.name);sv('cfg-phone',cfg.phone);sv('cfg-addr',cfg.addr);sv('cfg-cro',cfg.cro);sv('cfg-taxid',cfg.taxId);sv('cfg-review-link',cfg.googleReviewLink);sv('cfg-color',cfg.accentColor||'#0c6e9e');
   renderCfgLogoPreview();
 }
 function addRole(){const v=document.getElementById('new-role-inp').value.trim();if(!v||D.roles.includes(v))return;D.roles.push(v);save('roles');document.getElementById('new-role-inp').value='';renderAdmin();}
 function removeRole(i){if(!confirm('Remover cargo?'))return;D.roles.splice(i,1);save('roles');renderAdmin();}
 function saveCfg(){
-  D.config={name:document.getElementById('cfg-name').value,phone:document.getElementById('cfg-phone').value,addr:document.getElementById('cfg-addr').value,cro:document.getElementById('cfg-cro').value,taxId:document.getElementById('cfg-taxid').value,accentColor:document.getElementById('cfg-color').value,logo:D.config?.logo||''};
+  D.config={name:document.getElementById('cfg-name').value,phone:document.getElementById('cfg-phone').value,addr:document.getElementById('cfg-addr').value,cro:document.getElementById('cfg-cro').value,taxId:document.getElementById('cfg-taxid').value,googleReviewLink:document.getElementById('cfg-review-link').value.trim(),accentColor:document.getElementById('cfg-color').value,logo:D.config?.logo||''};
   save('config');alert('Configurações salvas!');
 }
 function renderCfgLogoPreview(){
