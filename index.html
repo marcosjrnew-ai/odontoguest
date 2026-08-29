@@ -165,9 +165,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t1);min-h
 .login-logo-icon{width:170px;height:auto;border-radius:14px;background:transparent;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:0}
 .login-logo-icon img{width:100%;height:auto;display:block;object-fit:contain}
 .login-logo-text{font-family:'Sora',sans-serif;font-size:24px;font-weight:800;color:var(--P);text-align:center;letter-spacing:.5px}
-#app{display:none;min-height:100vh}
-.app-inner{display:flex;min-height:100vh}
-#sidebar{width:235px;background:linear-gradient(180deg,#0d2137 0%,#0c4a72 100%);padding:18px 12px;display:flex;flex-direction:column;gap:2px;min-height:100vh;flex-shrink:0;overflow-y:auto}
+/* Casca do app: sempre exatamente 1 viewport de altura, sem scroll na página em si —
+   só #sidebar e #main rolam por dentro, cada um com seu próprio overflow-y:auto. Vale
+   pra qualquer tela atual ou futura, é estrutural (não por página). */
+#app{display:none;height:100vh;overflow:hidden}
+.app-inner{display:flex;height:100vh}
+#sidebar{width:235px;background:linear-gradient(180deg,#0d2137 0%,#0c4a72 100%);padding:18px 12px;display:flex;flex-direction:column;gap:2px;height:100vh;flex-shrink:0;overflow-y:auto}
 .s-logo{display:flex;align-items:center;gap:10px;padding:6px 8px 20px}
 .s-logo-icon{width:58px;height:58px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;padding:3px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
 .s-logo-icon img{width:100%;height:100%;display:block;object-fit:contain}
@@ -330,6 +333,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 /* PRINT */
 @media print{
   #sidebar,.no-print,#login-screen,.overlay{display:none!important}
+  #app,.app-inner{height:auto;overflow:visible}
   #main{padding:0;max-height:none;overflow:visible}
   .page{display:block!important}
   .card{box-shadow:none;border:1px solid #ddd}
