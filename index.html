@@ -1171,6 +1171,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <div><label>Profissional</label><select class="inp" id="bud-pro"></select></div>
     <div><label>Data</label><input type="date" class="inp" id="bud-date"/></div>
     <div><label>Validade</label><input type="date" class="inp" id="bud-valid"/></div>
+    <div><label>Forma de Pagamento</label><select class="inp" id="bud-pay"><option value="">A combinar</option><option value="pix">PIX</option><option value="cash">Dinheiro</option><option value="debit">Débito</option><option value="credit">Crédito</option><option value="plan">Convênio</option></select></div>
     <div style="grid-column:1/-1"><label>Observações</label><textarea class="inp" id="bud-notes" rows="2"></textarea></div>
   </div>
   <div class="form-sec">Procedimentos</div>
@@ -2831,7 +2832,7 @@ function openBud(id){
   const b=id?D.budgets.find(x=>x.id===id):{};
   document.getElementById('m-bud-t').textContent=id?'Editar Orçamento':'Novo Orçamento';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
-  sv('bud-pat',b.patientId);sv('bud-pro',b.professionalId||CU?.id);sv('bud-date',b.date||today());sv('bud-valid',b.validUntil);sv('bud-notes',b.notes);sv('bud-paid',b.paid||0);sv('bud-disc',b.disc||0);sv('bud-status',b.status||'active');
+  sv('bud-pat',b.patientId);sv('bud-pro',b.professionalId||CU?.id);sv('bud-date',b.date||today());sv('bud-valid',b.validUntil);sv('bud-pay',b.payMethod||'');sv('bud-notes',b.notes);sv('bud-paid',b.paid||0);sv('bud-disc',b.disc||0);sv('bud-status',b.status||'active');
   document.getElementById('bud-items').innerHTML='';(b.items||[]).forEach(i=>addBudItem(i.procedureId,i.qty,i.professionalId||0));
   calcBudTotal();document.getElementById('bud-del').style.display=(id&&canDelete())?'inline-flex':'none';om('bud');
 }
@@ -2839,7 +2840,7 @@ function saveBud(){
   if(!canEdit())return;const patId=+document.getElementById('bud-pat').value;if(!patId){alert('Selecione paciente.');return;}
   const items=[...document.querySelectorAll('#bud-items > div')].map(r=>({procedureId:+r.querySelector('.bud-proc').value,qty:+r.querySelector('.bud-qty').value||1,professionalId:+r.querySelector('.bud-item-pro')?.value||0})).filter(i=>i.procedureId>0);
   const{total,discVal}=calcBudTotal();
-  const obj={patientId:patId,professionalId:+document.getElementById('bud-pro').value,date:document.getElementById('bud-date').value,validUntil:document.getElementById('bud-valid').value,notes:document.getElementById('bud-notes').value,items,total,disc:+document.getElementById('bud-disc').value||0,discVal,paid:+document.getElementById('bud-paid').value||0,status:document.getElementById('bud-status').value};
+  const obj={patientId:patId,professionalId:+document.getElementById('bud-pro').value,date:document.getElementById('bud-date').value,validUntil:document.getElementById('bud-valid').value,payMethod:document.getElementById('bud-pay').value,notes:document.getElementById('bud-notes').value,items,total,disc:+document.getElementById('bud-disc').value||0,discVal,paid:+document.getElementById('bud-paid').value||0,status:document.getElementById('bud-status').value};
   EID?D.budgets=D.budgets.map(b=>b.id===EID?{...obj,id:EID}:b):D.budgets.push({...obj,id:uid()});
   const _budPatId=patId; save('budgets');cm('bud');renderBudgets();
 }
@@ -2871,7 +2872,11 @@ function renderBudgets(){
 function printBud(){
   const patId=+document.getElementById('bud-pat').value,p=getPat(patId),pr=getPro(+document.getElementById('bud-pro').value);
   const items=[...document.querySelectorAll('#bud-items > div')].map(r=>({procedureId:+r.querySelector('.bud-proc').value,qty:+r.querySelector('.bud-qty').value||1})).filter(i=>i.procedureId>0);
-  const{total,discVal}=calcBudTotal();const paid=+document.getElementById('bud-paid').value||0,valid=document.getElementById('bud-valid').value,disc=+document.getElementById('bud-disc').value||0,cfg=D.config||{};
+  const{total,discVal}=calcBudTotal();
+  const paid=+document.getElementById('bud-paid').value||0,valid=document.getElementById('bud-valid').value,disc=+document.getElementById('bud-disc').value||0,cfg=D.config||{};
+  const payLbl={pix:'PIX',cash:'Dinheiro',debit:'Débito',credit:'Crédito',plan:'Convênio'}[document.getElementById('bud-pay').value]||'A combinar';
+  const accent=cfg.accentColor||'#0c6e9e';
+  const dob=p.dob?new Date(p.dob+'T00:00:00').toLocaleDateString('pt-BR'):'';
   const pw=window.open('','_blank');
   pw.document.write(`<!DOCTYPE html>
 <!--
@@ -2889,17 +2894,52 @@ function printBud(){
   ║                                                              ║
   ║  Violações estão sujeitas a sanções civis e criminais.       ║
   ╚══════════════════════════════════════════════════════════════╝
---><html><head><title>Orçamento</title><style>body{font-family:Arial,sans-serif;padding:30px;max-width:700px;margin:auto;color:#1e293b}h1{color:#0c6e9e}table{width:100%;border-collapse:collapse;margin:14px 0}th{background:#e0f4ff;color:#0c6e9e;padding:9px;text-align:left;font-size:12px}td{padding:9px;border-bottom:1px solid #e2e8f0;font-size:13px}.total{font-size:17px;font-weight:800;color:#0c6e9e}.footer{margin-top:28px;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}</style></head><body>
-  <h1>🦷 Orçamento Odontológico</h1><p style="color:#64748b">${cfg.name||'Consultório'} ${cfg.addr?'· '+cfg.addr:''}</p>
-  <p><b>Paciente:</b> ${p.name}${p.social?' ('+p.social+')':''}</p>
-  <p><b>Responsável:</b> ${pr.dispName||'—'}</p>
-  <p><b>Data:</b> ${new Date().toLocaleDateString('pt-BR')}${valid?' · <b>Válido até:</b> '+new Date(valid+'T00:00:00').toLocaleDateString('pt-BR'):''}</p>
+--><html><head><title>Orçamento — ${p.name}</title><style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;padding:34px;max-width:720px;margin:auto;color:#1e293b}
+  .hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid ${accent};padding-bottom:14px;margin-bottom:16px}
+  .hd img{width:58px;height:58px;object-fit:contain;border-radius:10px;flex-shrink:0}
+  .hd-name{font-size:19px;font-weight:800;color:${accent}}
+  .hd-meta{font-size:11.5px;color:#64748b;margin-top:2px;line-height:1.5}
+  h1{font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:#64748b;margin:0 0 14px}
+  .info{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;font-size:13px;margin-bottom:16px;padding:12px 14px;background:#f8fafc;border-radius:10px}
+  .info b{color:#334155}
+  table{width:100%;border-collapse:collapse;margin:14px 0}
+  th{background:${accent}18;color:${accent};padding:9px;text-align:left;font-size:12px}
+  td{padding:9px;border-bottom:1px solid #e2e8f0;font-size:13px}
+  .totbox{margin-top:6px;padding:12px 14px;background:#f8fafc;border-radius:10px}
+  .totbox div{display:flex;justify-content:space-between;font-size:13.5px;padding:2px 0}
+  .total{font-size:18px;font-weight:800;color:${accent}}
+  .footer{margin-top:30px;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
+  .sign{margin-top:36px;font-size:13px;text-align:center}
+  .sign .line{border-top:1px solid #94a3b8;width:320px;margin:0 auto 6px}
+  </style></head><body>
+  <div class="hd">
+  ${cfg.logo?`<img src="${cfg.logo}"/>`:''}
+  <div><div class="hd-name">${cfg.name||'Consultório Odontológico'}</div>
+  <div class="hd-meta">${cfg.cro?cfg.cro+' &nbsp;·&nbsp; ':''}${cfg.phone?cfg.phone+' &nbsp;·&nbsp; ':''}${cfg.addr||''}</div></div>
+  </div>
+  <h1>Orçamento Odontológico</h1>
+  <div class="info">
+    <div><b>Paciente:</b> ${p.name}${p.social?' ('+p.social+')':''}</div>
+    <div><b>Nascimento:</b> ${dob||'—'}</div>
+    <div><b>CPF:</b> ${p.cpf||'—'}</div>
+    <div><b>Endereço:</b> ${p.addr||'—'}</div>
+    <div><b>Responsável:</b> ${pr.dispName||'—'}</div>
+    <div><b>Forma de Pagamento:</b> ${payLbl}</div>
+    <div><b>Data:</b> ${new Date().toLocaleDateString('pt-BR')}</div>
+    <div><b>Válido até:</b> ${valid?new Date(valid+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</div>
+  </div>
   <table><thead><tr><th>Procedimento</th><th>Qtd</th><th>Valor Unit.</th><th>Subtotal</th></tr></thead><tbody>
   ${items.map(i=>`<tr><td>${getProc(i.procedureId).name}</td><td>${i.qty}</td><td>${fmt(getProc(i.procedureId).price)}</td><td>${fmt((getProc(i.procedureId).price||0)*i.qty)}</td></tr>`).join('')}
   </tbody></table>
-  <p class="total">Total: ${fmt(total)}</p>${disc?`<p>Desconto (${disc}%): <b style="color:#10b981">- ${fmt(total-discVal)}</b></p><p class="total">Total c/ Desconto: ${fmt(discVal)}</p>`:''}
-  <p>Entrada / Pago: <b>${fmt(paid)}</b></p><p class="total">Saldo Restante: ${fmt(discVal-paid)}</p>
-  <br/><p>Assinatura do Paciente: ___________________________________</p>
+  <div class="totbox">
+    <div><span>Total:</span><span class="total">${fmt(total)}</span></div>
+    ${disc?`<div><span>Desconto (${disc}%):</span><span style="color:#10b981;font-weight:700">- ${fmt(total-discVal)}</span></div><div><span>Total c/ Desconto:</span><span class="total">${fmt(discVal)}</span></div>`:''}
+    <div><span>Entrada / Pago:</span><b>${fmt(paid)}</b></div>
+    <div><span>Saldo Restante:</span><span class="total">${fmt(discVal-paid)}</span></div>
+  </div>
+  <div class="sign"><div class="line"></div>Assinatura do Paciente</div>
   <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')} — OdontoGuest v3.9</div>
   <script>window.print();<\/script><!-- COPYRIGHT -->
 <div style="display:none" id="og-copyright" aria-hidden="true">© 2026 OdontoGuest. Todos os direitos reservados. Protegido pela Lei 9.610/1998. Uso não autorizado é proibido.</div>
