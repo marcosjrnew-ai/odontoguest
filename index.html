@@ -1179,7 +1179,49 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 <div class="overlay" id="m-sk" style="display:none" onclick="if(event.target===this)cm('sk')"><div class="modal" onclick="event.stopPropagation()" style="max-width:450px">
   <div class="modal-title" id="m-sk-t">Item de Estoque</div>
   <div style="display:flex;flex-direction:column;gap:10px">
-    <div><label>Nome</label><input class="inp" id="sk-name"/></div>
+    <div><label>Nome</label><input class="inp" id="sk-name" list="sk-name-list" placeholder="Selecione ou digite..."/>
+      <datalist id="sk-name-list">
+        <option value="Resina Composta A1"/><option value="Resina Composta A2"/><option value="Resina Composta A3"/>
+        <option value="Resina Composta A3.5"/><option value="Resina Composta A4"/><option value="Resina Composta B1"/>
+        <option value="Resina Composta B2"/><option value="Resina Composta C2"/><option value="Resina Bulk Fill"/>
+        <option value="Ionômero de Vidro"/><option value="Ionômero de Vidro Modificado por Resina"/><option value="Amálgama"/>
+        <option value="Ácido Fosfórico 37%"/><option value="Ácido Poliacrílico"/><option value="Adesivo Dentinário"/>
+        <option value="Cimento Cirúrgico (IRM)"/><option value="Cimento de Fosfato de Zinco"/><option value="Cimento Resinoso"/>
+        <option value="Verniz Cavitário"/><option value="Selante de Fóssulas e Fissuras"/>
+        <option value="Anestésico Lidocaína 2%"/><option value="Anestésico Articaína 4%"/><option value="Anestésico Mepivacaína"/>
+        <option value="Anestésico Prilocaína"/><option value="Anestésico Tópico (Benzocaína Gel)"/>
+        <option value="Agulha Gengival Curta"/><option value="Agulha Gengival Longa"/><option value="Agulha Gengival Extra-Curta"/>
+        <option value="Tubete Anestésico"/><option value="Seringa Carpule"/><option value="Sugador Descartável"/>
+        <option value="Rolete de Algodão"/><option value="Gaze Estéril"/>
+        <option value="Luvas de Procedimento P"/><option value="Luvas de Procedimento M"/><option value="Luvas de Procedimento G"/>
+        <option value="Máscara Cirúrgica Descartável"/><option value="Máscara N95/PFF2"/><option value="Óculos de Proteção"/>
+        <option value="Touca Descartável"/><option value="Avental/Jaleco Descartável"/><option value="Campo Cirúrgico Descartável"/>
+        <option value="Babador Descartável"/><option value="Barreira Plástica (PVC Filme)"/><option value="Lençol Descartável (Maca)"/>
+        <option value="Alginato"/><option value="Silicone de Condensação"/><option value="Silicone de Adição"/>
+        <option value="Gesso Odontológico Tipo III"/><option value="Gesso Odontológico Tipo IV"/>
+        <option value="Cera Utilidade"/><option value="Cera 7"/><option value="Fio Retrator Gengival"/>
+        <option value="Cone de Guta-Percha"/><option value="Cone de Papel Absorvente"/><option value="Hipoclorito de Sódio"/>
+        <option value="EDTA"/><option value="Cimento Obturador de Canal"/><option value="Hidróxido de Cálcio"/>
+        <option value="Álcool 70%"/><option value="Álcool em Gel"/><option value="Saco para Autoclave (Papel Grau Cirúrgico)"/>
+        <option value="Sabonete Antisséptico/Degermante"/><option value="Detergente Enzimático"/>
+        <option value="Fio de Sutura Reabsorvível"/><option value="Fio de Sutura Não-Reabsorvível"/>
+        <option value="Lâmina de Bisturi nº 11"/><option value="Lâmina de Bisturi nº 12"/><option value="Lâmina de Bisturi nº 15"/>
+        <option value="Curativo Periodontal"/><option value="Esponja Hemostática"/><option value="Membrana de Regeneração Óssea"/>
+        <option value="Enxerto Ósseo (Biomaterial)"/>
+        <option value="Disco de Lixa (Soflex)"/><option value="Ponta de Polimento (Borracha Abrasiva)"/>
+        <option value="Pasta Profilática/Pedra-Pomes"/><option value="Tira de Poliéster"/><option value="Fita Matriz Metálica"/>
+        <option value="Escova Profilática"/><option value="Evidenciador de Placa Bacteriana"/><option value="Flúor Gel/Verniz Fluoretado"/>
+        <option value="Bráquete Ortodôntico"/><option value="Arco Ortodôntico"/><option value="Elástico Ortodôntico (Ligadura)"/>
+        <option value="Banda Ortodôntica"/><option value="Cera Ortodôntica"/><option value="Resina para Colagem de Bráquete"/>
+        <option value="Parafuso de Cicatrização"/><option value="Componente Protético (Munhão/Abutment)"/>
+        <option value="Peróxido de Hidrogênio (Clareamento em Consultório)"/><option value="Peróxido de Carbamida (Clareamento Caseiro)"/>
+        <option value="Moldeira de Clareamento"/>
+        <option value="Filme Radiográfico Periapical"/><option value="Manga Plástica p/ Sensor Digital"/><option value="Protetor de Tireoide"/>
+        <option value="Copo Descartável"/><option value="Guardanapo Descartável"/><option value="Papel Toalha"/>
+        <option value="Sabonete Líquido"/><option value="Escova Robinson/Taça de Borracha"/><option value="Fio Dental"/>
+        <option value="Sugador de Alta Potência (ponta)"/><option value="Sugador de Baixa Potência (ponta)"/>
+      </datalist>
+    </div>
     <div class="g2" style="gap:9px">
       <div><label>Unidade</label><input class="inp" id="sk-unit" placeholder="cx, seringa..."/></div>
       <div><label>Fornecedor</label><select class="inp" id="sk-sup"><option value="">Nenhum</option></select></div>
