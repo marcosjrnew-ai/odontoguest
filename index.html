@@ -631,6 +631,19 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:800;font-size:14px;border-bottom:1px solid var(--border)">🦷 Breakdown por Procedimento e Profissional</div>
   <table class="tbl"><thead><tr><th>Profissional</th><th>Procedimento</th><th>Qtd</th><th>Valor Gerado</th><th>Comissão</th></tr></thead>
   <tbody id="rep-breakdown"></tbody></table></div>
+  <div class="card" style="margin-top:14px">
+    <div class="row-flex" style="margin-bottom:4px"><div class="card-hd" style="margin-bottom:0"><span class="nav-icon" data-ico="finance"></span> Lucro/Prejuízo por Período</div>
+      <div class="agenda-view-tabs no-print">
+        <button class="tab-btn" id="rp-week" onclick="setRepPeriodView('week')">Semanal</button>
+        <button class="tab-btn active" id="rp-month" onclick="setRepPeriodView('month')">Mensal</button>
+        <button class="tab-btn" id="rp-quarter" onclick="setRepPeriodView('quarter')">Trimestral</button>
+        <button class="tab-btn" id="rp-semester" onclick="setRepPeriodView('semester')">Semestral</button>
+        <button class="tab-btn" id="rp-year" onclick="setRepPeriodView('year')">Anual</button>
+      </div>
+    </div>
+    <div style="font-size:11.5px;color:var(--t3);margin-bottom:10px">Receita = valores recebidos de pacientes. Custos: aluguel e materiais comprados pelo profissional (Outros Pagamentos). Usa o filtro de profissional acima.</div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Período</th><th>Receita</th><th>Aluguel</th><th>Materiais</th><th>Lucro/Prejuízo</th></tr></thead><tbody id="rep-pl-body"></tbody></table></div>
+  </div>
 </div>
 
 <!-- OTHER PAYMENTS -->
@@ -4113,6 +4126,83 @@ function fillMsg(template, vars) {
   return t;
 }
 
+// ─── LUCRO/PREJUÍZO POR PERÍODO (Fase D) ────────────────────
+// Receita = valores recebidos de pacientes (D.visits.paid). Custos considerados: aluguel
+// (Outros Pagamentos tipo 'rent') e materiais comprados pelo próprio profissional (tipo
+// 'material') — não inclui o custo de material já embutido em cada visita (matCost), esse já
+// aparece separado no card de Comissões/Desempenho acima.
+let repPeriodView='month';
+function setRepPeriodView(v){
+  repPeriodView=v;
+  ['week','month','quarter','semester','year'].forEach(k=>document.getElementById('rp-'+k)?.classList.toggle('active',k===v));
+  renderProfitLossTable();
+}
+function _periodRanges(granularity,count){
+  const ranges=[],now=new Date();
+  const iso=d=>d.toISOString().slice(0,10);
+  if(granularity==='week'){
+    const start=_weekStartDate(today());
+    for(let i=0;i<count;i++){
+      const s=new Date(start);s.setDate(s.getDate()-7*i);
+      const e=new Date(s);e.setDate(e.getDate()+6);
+      ranges.push({label:`${s.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} a ${e.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`,from:iso(s),to:iso(e)});
+    }
+  }else if(granularity==='month'){
+    for(let i=0;i<count;i++){
+      const s=new Date(now.getFullYear(),now.getMonth()-i,1);
+      const e=new Date(now.getFullYear(),now.getMonth()-i+1,0);
+      ranges.push({label:s.toLocaleDateString('pt-BR',{month:'short',year:'numeric'}),from:iso(s),to:iso(e)});
+    }
+  }else if(granularity==='quarter'){
+    const curQ=Math.floor(now.getMonth()/3);
+    for(let i=0;i<count;i++){
+      const tot=curQ-i,year=now.getFullYear()+Math.floor(tot/4)-(tot%4<0?1:0),q=((tot%4)+4)%4;
+      const s=new Date(year,q*3,1),e=new Date(year,q*3+3,0);
+      ranges.push({label:`${q+1}º Tri/${year}`,from:iso(s),to:iso(e)});
+    }
+  }else if(granularity==='semester'){
+    const curS=Math.floor(now.getMonth()/6);
+    for(let i=0;i<count;i++){
+      const tot=curS-i,year=now.getFullYear()+Math.floor(tot/2)-(tot%2<0?1:0),sm=((tot%2)+2)%2;
+      const s=new Date(year,sm*6,1),e=new Date(year,sm*6+6,0);
+      ranges.push({label:`${sm+1}º Sem/${year}`,from:iso(s),to:iso(e)});
+    }
+  }else{
+    for(let i=0;i<count;i++){
+      const y=now.getFullYear()-i;
+      ranges.push({label:String(y),from:`${y}-01-01`,to:`${y}-12-31`});
+    }
+  }
+  return ranges;
+}
+function _profitLossForRange(from,to,proFilt){
+  let visits=D.visits.filter(v=>v.date>=from&&v.date<=to);
+  let rent=D.otherPayments.filter(o=>o.type==='rent'&&o.date>=from&&o.date<=to);
+  let mats=D.otherPayments.filter(o=>o.type==='material'&&o.date>=from&&o.date<=to);
+  if(proFilt){visits=visits.filter(v=>v.professionalId===+proFilt);rent=rent.filter(o=>o.professionalId===+proFilt);mats=mats.filter(o=>o.professionalId===+proFilt);}
+  const receita=visits.reduce((s,v)=>s+(v.paid||0),0);
+  const aluguel=rent.reduce((s,o)=>s+(o.val||0),0);
+  const materiais=mats.reduce((s,o)=>s+(o.val||0),0);
+  return{receita,aluguel,materiais,lucro:receita-aluguel-materiais};
+}
+function renderProfitLossTable(){
+  const el=document.getElementById('rep-pl-body');if(!el)return;
+  const proFilt=document.getElementById('rep-pro-filter')?.value||'';
+  const counts={week:12,month:12,quarter:8,semester:6,year:5};
+  const ranges=_periodRanges(repPeriodView,counts[repPeriodView]);
+  el.innerHTML=ranges.map(r=>{
+    const{receita,aluguel,materiais,lucro}=_profitLossForRange(r.from,r.to,proFilt);
+    const neg=lucro<0;
+    return`<tr style="${neg?'background:#fef2f2':''}">
+      <td style="font-weight:700">${r.label}</td>
+      <td>${fmt(receita)}</td>
+      <td>${fmt(aluguel)}</td>
+      <td>${fmt(materiais)}</td>
+      <td style="font-weight:800;color:${neg?'#dc2626':'#16a34a'}">${fmt(lucro)}</td>
+    </tr>`;
+  }).join('');
+}
+
 // ─── REPORTS (per professional) ─────────────────────────────
 function renderReports(){
   // Fill professional filter
@@ -4201,6 +4291,7 @@ function renderReports(){
 
   // Draw chart
   drawReportChart(entries);
+  renderProfitLossTable();
 }
 
 function drawReportChart(entries){
