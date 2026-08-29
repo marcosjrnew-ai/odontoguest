@@ -53,7 +53,7 @@ window._fbSignOut = async function(){
 // As 10 coleções em array e as 2 em documento único (config/messages) que já
 // eram compartilhadas por clínica no localStorage (ver migrateDataToClinic no
 // script principal) — precisa ficar em sincronia com essa mesma lista.
-const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','otherPayments','suppliers','professionals','procs'];
+const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs'];
 const SINGLEDOC_COLS = ['config','messages'];
 
 window._applyingRemote = false;
@@ -478,6 +478,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <button class="nav-btn" onclick="go('finance')"><span class="nav-icon" data-ico="finance"></span><span class="nav-label">Financeiro</span></button>
   <button class="nav-btn" onclick="go('otherpay')"><span class="nav-icon" data-ico="otherpay"></span><span class="nav-label">Outros Pgtos</span></button>
   <button class="nav-btn" onclick="go('stock')"><span class="nav-icon" data-ico="stock"></span><span class="nav-label">Estoque</span></button>
+  <button class="nav-btn" onclick="go('equipment')"><span class="nav-icon" data-ico="equipment"></span><span class="nav-label">Equipamentos</span></button>
   <button class="nav-btn" onclick="go('shopping')"><span class="nav-icon" data-ico="shopping"></span><span class="nav-label">Lista Compras</span></button>
   <button class="nav-btn" onclick="go('suppliers')"><span class="nav-icon" data-ico="suppliers"></span><span class="nav-label">Fornecedores</span></button>
   <div class="s-sec nav-label">Config</div>
@@ -645,6 +646,14 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div class="actions no-print"><button class="btn btn-p" onclick="openSk()" id="btn-new-sk">+ Novo Item</button>
   <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button></div></div>
   <div id="sk-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:12px"></div>
+</div>
+
+<!-- EQUIPMENT -->
+<div id="page-equipment" class="page">
+  <div class="row-flex"><div><div class="s-title">Equipamentos</div><div class="s-sub" id="eq-total">Instrumental e equipamentos próprios dos profissionais</div></div>
+  <div class="actions no-print"><button class="btn btn-p" onclick="openEq()" id="btn-new-eq">+ Novo Equipamento</button>
+  <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button></div></div>
+  <div id="eq-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:12px"></div>
 </div>
 
 <!-- SHOPPING -->
@@ -1187,6 +1196,39 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   </div>
 </div></div>
 
+<div class="overlay" id="m-eq" style="display:none" onclick="if(event.target===this)cm('eq')"><div class="modal" onclick="event.stopPropagation()" style="max-width:460px">
+  <div class="modal-title" id="m-eq-t">Equipamento</div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div class="g2" style="gap:9px">
+      <div><label>Código</label><input class="inp" id="eq-code" placeholder="EQ-001"/></div>
+      <div><label>Categoria</label><input class="inp" id="eq-cat" list="eq-cat-list" placeholder="Selecione ou digite..." oninput="updateEqCodeSuggestion()"/>
+        <datalist id="eq-cat-list">
+          <option value="Pinça"/><option value="Broca"/><option value="Extrator"/><option value="Espelho Bucal"/>
+          <option value="Sonda Exploradora"/><option value="Cureta"/><option value="Alicate"/>
+          <option value="Motor/Caneta de Alta Rotação"/><option value="Autoclave"/><option value="Outro"/>
+        </datalist>
+      </div>
+    </div>
+    <div><label>Nome</label><input class="inp" id="eq-name"/></div>
+    <div class="g2" style="gap:9px">
+      <div><label>Quantidade</label><input type="number" class="inp" id="eq-qty" min="0" value="1"/></div>
+      <div><label>Estado</label><select class="inp" id="eq-cond">
+        <option value="Novo">Novo</option><option value="Bom">Bom</option><option value="Regular">Regular</option>
+        <option value="Precisa manutenção">Precisa manutenção</option><option value="Quebrado">Quebrado</option>
+      </select></div>
+      <div><label>Valor Unit. (R$)</label><input type="number" class="inp" id="eq-value" min="0" step="0.01"/></div>
+      <div><label>Data de Aquisição</label><input type="date" class="inp" id="eq-acq"/></div>
+    </div>
+    <div><label>Dono (profissional)</label><select class="inp" id="eq-pro"></select></div>
+    <div><label>Observações</label><textarea class="inp" id="eq-notes" rows="2"></textarea></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-r btn-sm" id="eq-del" style="display:none" onclick="delEq()">Excluir</button>
+    <button class="btn btn-o" onclick="cm('eq')">Cancelar</button>
+    <button class="btn btn-p" onclick="saveEq()">Salvar</button>
+  </div>
+</div></div>
+
 <div class="overlay" id="m-sup" style="display:none" onclick="if(event.target===this)cm('sup')"><div class="modal modal-lg" onclick="event.stopPropagation()">
   <div class="modal-title" id="m-sup-t">Fornecedor</div>
   <div class="g2" style="gap:9px">
@@ -1267,7 +1309,10 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 <div class="overlay" id="m-proc" style="display:none" onclick="if(event.target===this)cm('proc')"><div class="modal" onclick="event.stopPropagation()" style="max-width:440px">
   <div class="modal-title" id="m-proc-t">Procedimento</div>
   <div style="display:flex;flex-direction:column;gap:10px">
-    <div><label>Nome</label><input class="inp" id="proc-name"/></div>
+    <div class="g2" style="gap:9px">
+      <div style="grid-column:1/-1"><label>Nome</label><input class="inp" id="proc-name"/></div>
+      <div><label>Código (TUSS ou interno)</label><input class="inp" id="proc-code" placeholder="Ex: 81000012"/></div>
+    </div>
     <div class="g2" style="gap:9px">
       <div><label>Valor Base (R$)</label><input type="number" class="inp" id="proc-price" min="0" step="0.01"/></div>
       <div><label>Custo Material (R$)</label><input type="number" class="inp" id="proc-cost" min="0" step="0.01"/></div>
@@ -1371,6 +1416,7 @@ stock:[
   {id:5,name:"Álcool 70%",unit:"litro",supplierId:0,cost:12,qty:1,minQty:2,exp:"2025-10-01"},
 ],
 otherPayments:[],
+equipment:[],
 suppliers:[],
 roles:["Dentista","Endodontista","Ortodontista","Implantodontista","Periodontista","Técnico","Auxiliar","Secretária","Recepcionista"],
 config:{name:"Consultório OdontoGuest",phone:"",addr:""},
@@ -1562,6 +1608,7 @@ const OG_ICO = {
   trash:'<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
   history:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
   wrench:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  equipment:'<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/>',
   whatsapp:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
   trendingDown:'<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>'
 };
@@ -1612,10 +1659,10 @@ function go(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
-  const pages=['dashboard','agenda','patients','records','budgets','returns','finance','otherpay','stock','shopping','suppliers','professionals','clinics','notifications','reports','advreports','messages','admin','backup'];
+  const pages=['dashboard','agenda','patients','records','budgets','returns','finance','otherpay','stock','equipment','shopping','suppliers','professionals','clinics','notifications','reports','advreports','messages','admin','backup'];
   document.querySelectorAll('.nav-btn')[pages.indexOf(page)]?.classList.add('active');
   activePage=page;
-  const R={dashboard:renderDashboard,agenda:renderAgenda,patients:renderPatients,records:renderRecords,budgets:renderBudgets,returns:renderReturns,finance:renderFinance,otherpay:renderOtherPay,stock:renderStock,shopping:renderShopping,suppliers:renderSuppliers,professionals:renderProfessionals,clinics:renderClinics,notifications:renderNotifications,reports:renderReports,advreports:renderAdvReports,messages:renderMessages,admin:renderAdmin,backup:renderBackup};
+  const R={dashboard:renderDashboard,agenda:renderAgenda,patients:renderPatients,records:renderRecords,budgets:renderBudgets,returns:renderReturns,finance:renderFinance,otherpay:renderOtherPay,stock:renderStock,equipment:renderEquipment,shopping:renderShopping,suppliers:renderSuppliers,professionals:renderProfessionals,clinics:renderClinics,notifications:renderNotifications,reports:renderReports,advreports:renderAdvReports,messages:renderMessages,admin:renderAdmin,backup:renderBackup};
   R[page]?.();
   closeSidebarMobile();
 }
@@ -2264,7 +2311,7 @@ function buildAuditEntry(action,oldObj,newObj){
 // Complementa o audit trail de visitas acima (que é field-a-field, específico de
 // prontuário) — aqui é só "isso existiu, foi apagado, por quem e quando", com uma
 // cópia completa do registro (snapshot), pra qualquer entidade do sistema.
-const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
+const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Equipamento',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
 function logDeletion(type,obj){
   if(!D._auditDeleted)D._auditDeleted=[];
   D._auditDeleted.push({timestamp:new Date().toISOString(),userId:CU?.id||0,userName:CU?.dispName||'Sistema',action:'excluir',type,snapshot:JSON.parse(JSON.stringify(obj))});
@@ -2280,6 +2327,7 @@ function auditDeletionSummary(entry){
     case 'return': return `${s.date||''} — ${getPat(s.patientId).name||'?'}`;
     case 'otherPayment': return `${s.desc||''} — ${fmt(s.val||0)}`;
     case 'stock': return s.name||'(sem nome)';
+    case 'equipment': return `${s.name||'(sem nome)'}${s.code?' — '+s.code:''}`;
     case 'supplier': return s.name||'(sem nome)';
     case 'professional': return s.dispName||s.fullName||'(sem nome)';
     case 'procedure': return s.name||'(sem nome)';
@@ -2800,6 +2848,64 @@ function saveSk(){if(!canEdit())return;const name=document.getElementById('sk-na
   save('stock');cm('sk');renderStock();}
 function delSk(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.stock.find(s=>s.id===EID);if(obj)logDeletion('stock',obj);D.stock=D.stock.filter(s=>s.id!==EID);save('stock');cm('sk');renderStock();}
 
+// ─── EQUIPAMENTOS (instrumental próprio dos profissionais) ──
+const EQ_COND_COLORS={'Novo':'#10b981','Bom':'#0ea5e9','Regular':'#f59e0b','Precisa manutenção':'#f97316','Quebrado':'#ef4444'};
+function renderEquipment(){
+  const total=D.equipment.reduce((s,e)=>s+(e.qty||0)*(e.value||0),0);
+  document.getElementById('eq-total').textContent=D.equipment.length?`Valor total: ${fmt(total)}`:'Instrumental e equipamentos próprios dos profissionais';
+  document.getElementById('eq-grid').innerHTML=D.equipment.map(e=>{
+    const pr=getPro(e.professionalId);
+    const condColor=EQ_COND_COLORS[e.condition]||'#94a3b8';
+    return`<div class="card" style="cursor:pointer" onclick="openEq(${e.id})">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+        <div><b>${e.name}</b>${e.code?`<div style="font-size:10.5px;color:var(--t3)">${e.code}</div>`:''}</div>
+        <span class="badge" style="background:${condColor}22;color:${condColor}">${e.condition||'—'}</span>
+      </div>
+      ${e.category?`<div style="font-size:11.5px;color:var(--P);margin-bottom:5px">${e.category}</div>`:''}
+      <div style="display:flex;justify-content:space-between;font-size:12.5px">
+        <span style="color:var(--t3)">Qtd: ${e.qty||0}${e.professionalId?' · '+pr.dispName?.split(' ')[0]:''}</span>
+        ${e.value?`<span style="color:var(--P);font-weight:700">${fmt((e.qty||0)*e.value)}</span>`:''}
+      </div>
+      ${e.acquisitionDate?`<div style="font-size:11px;color:var(--t3);margin-top:4px">Adquirido: ${new Date(e.acquisitionDate+'T00:00:00').toLocaleDateString('pt-BR')}</div>`:''}
+    </div>`;
+  }).join('')||'<div class="card" style="color:var(--t3)">Nenhum equipamento cadastrado.</div>';
+}
+const EQ_CAT_PREFIX={'Pinça':'PIN','Broca':'BRO','Extrator':'EXT','Espelho Bucal':'ESP','Sonda Exploradora':'SON','Cureta':'CUR','Alicate':'ALI','Motor/Caneta de Alta Rotação':'MOT','Autoclave':'AUT','Outro':'EQP'};
+function _eqPrefixFor(category){
+  if(!category)return'EQP';
+  if(EQ_CAT_PREFIX[category])return EQ_CAT_PREFIX[category];
+  const letters=category.normalize('NFD').replace(/[^a-zA-Z]/g,'').toUpperCase();
+  return letters.slice(0,3)||'EQP';
+}
+function _nextEqCode(category){
+  const prefix=_eqPrefixFor(category);
+  const nums=D.equipment.filter(e=>(e.code||'').startsWith(prefix+'-')).map(e=>parseInt((e.code||'').split('-')[1],10)).filter(n=>!isNaN(n));
+  const next=(nums.length?Math.max(...nums):0)+1;
+  return prefix+'-'+String(next).padStart(3,'0');
+}
+function updateEqCodeSuggestion(){
+  if(EID)return; // não mexe no código de um item já existente
+  document.getElementById('eq-code').value=_nextEqCode(document.getElementById('eq-cat').value.trim());
+}
+function openEq(id){
+  if(!canEdit()&&!id)return;EID=id||null;
+  document.getElementById('eq-pro').innerHTML='<option value="">Nenhum</option>'+D.professionals.map(p=>`<option value="${p.id}">${p.dispName}</option>`).join('');
+  const e=id?D.equipment.find(x=>x.id===id):{};
+  document.getElementById('m-eq-t').textContent=id?'Editar Equipamento':'Novo Equipamento';
+  const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
+  sv('eq-code',id?e.code:_nextEqCode(''));sv('eq-cat',e.category);sv('eq-name',e.name);sv('eq-qty',id?e.qty:1);
+  sv('eq-cond',e.condition||'Novo');sv('eq-value',e.value);sv('eq-acq',e.acquisitionDate);sv('eq-pro',e.professionalId||'');sv('eq-notes',e.notes);
+  document.getElementById('eq-del').style.display=(id&&canDelete())?'inline-flex':'none';om('eq');
+}
+function saveEq(){
+  if(!canEdit())return;const name=document.getElementById('eq-name').value.trim();if(!name)return;
+  const gv=id=>document.getElementById(id)?.value||'';
+  const obj={code:gv('eq-code'),category:gv('eq-cat'),name,qty:+gv('eq-qty')||0,condition:gv('eq-cond'),value:+gv('eq-value')||0,acquisitionDate:gv('eq-acq'),professionalId:+gv('eq-pro')||0,notes:gv('eq-notes')};
+  EID?D.equipment=D.equipment.map(e=>e.id===EID?{...obj,id:EID}:e):D.equipment.push({...obj,id:uid()});
+  save('equipment');cm('eq');renderEquipment();
+}
+function delEq(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.equipment.find(e=>e.id===EID);if(obj)logDeletion('equipment',obj);D.equipment=D.equipment.filter(e=>e.id!==EID);save('equipment');cm('eq');renderEquipment();}
+
 // ─── SHOPPING ──────────────────────────────────────────────
 function renderShopping(){
   const low=D.stock.filter(s=>s.qty<=s.minQty),exp=D.stock.filter(s=>s.exp&&daysUntil(s.exp)<=30);
@@ -2936,7 +3042,7 @@ function renderAdmin(){
     </div>`).join('');
   document.getElementById('admin-procs').innerHTML=D.procs.map(p=>`
     <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px">
-      <span style="font-weight:600">${p.name}</span>
+      <span style="font-weight:600">${p.name}${p.code?` <span style="color:var(--t3);font-weight:400;font-size:11px">(${p.code})</span>`:''}</span>
       <div style="display:flex;gap:8px;align-items:center"><span style="color:var(--P);font-weight:700">${fmt(p.price)}</span><button class="btn btn-o btn-sm" onclick="openProcModal(${p.id})">✏️</button></div>
     </div>`).join('');
   const cfg=D.config||{};
@@ -2952,10 +3058,10 @@ function openProcModal(id){if(!canAdmin())return;EID=id||null;
   const p=id?D.procs.find(x=>x.id===id):{};
   document.getElementById('m-proc-t').textContent=id?'Editar Procedimento':'Novo Procedimento';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
-  sv('proc-name',p.name);sv('proc-price',p.price);sv('proc-cost',p.cost);sv('proc-profcost',p.profcost||0);sv('proc-dur',p.dur||60);
+  sv('proc-name',p.name);sv('proc-code',p.code);sv('proc-price',p.price);sv('proc-cost',p.cost);sv('proc-profcost',p.profcost||0);sv('proc-dur',p.dur||60);
   document.getElementById('proc-del').style.display=(id&&canDelete())?'inline-flex':'none';om('proc');}
 function saveProc(){if(!canAdmin())return;const name=document.getElementById('proc-name').value.trim();if(!name)return;
-  const obj={name,price:+document.getElementById('proc-price').value||0,cost:+document.getElementById('proc-cost').value||0,profcost:+document.getElementById('proc-profcost').value||0,dur:+document.getElementById('proc-dur').value||60};
+  const obj={name,code:document.getElementById('proc-code').value.trim(),price:+document.getElementById('proc-price').value||0,cost:+document.getElementById('proc-cost').value||0,profcost:+document.getElementById('proc-profcost').value||0,dur:+document.getElementById('proc-dur').value||60};
   EID?D.procs=D.procs.map(p=>p.id===EID?{...obj,id:EID}:p):D.procs.push({...obj,id:uid()});
   save('procs');cm('proc');renderAdmin();}
 function delProc(){if(!canDelete()||!confirm('Excluir procedimento?'))return;const obj=D.procs.find(p=>p.id===EID);if(obj)logDeletion('procedure',obj);D.procs=D.procs.filter(p=>p.id!==EID);save('procs');cm('proc');renderAdmin();}
@@ -5102,7 +5208,7 @@ function initMulticlinic(){
 }
 
 function migrateDataToClinic(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','otherPayments','suppliers','professionals','procs','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','config','messages'];
   keys.forEach(k=>{
     const existing=LS.get(k);
     if(existing!==null){
@@ -5155,7 +5261,7 @@ window._onFirestoreCollectionUpdate=function(key,data,cache){
 // ── Passo 7: terceira camada de save() — sobe pro Firestore o que mudou ──
 // Segue o mesmo padrão já documentado (reatribuição, nunca `function save(k){}`
 // de novo — é o bug de recursão infinita já resolvido uma vez neste arquivo).
-const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','otherPayments','suppliers','professionals','procs'];
+const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs'];
 const FB_SINGLEDOC_KEYS=['config','messages'];
 function fbDocIdFor(key,rec){
   return key==='professionals' ? String(rec.email||'').toLowerCase().trim() : String(rec.id);
@@ -5226,7 +5332,7 @@ function switchClinic(id){
 
 function saveAllClinicData(){
   if(!activeClinicId)return;
-  const keys=['patients','appointments','visits','budgets','returns','stock','otherPayments','suppliers','professionals','procs','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','config','messages'];
   keys.forEach(k=>{
     if(D[k]!==undefined){
       localStorage.setItem('og3_clinic_'+activeClinicId+'_'+k,JSON.stringify(D[k]));
@@ -5235,7 +5341,7 @@ function saveAllClinicData(){
 }
 
 function loadClinicData(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','otherPayments','suppliers','professionals','procs','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','config','messages'];
   keys.forEach(k=>{
     const raw=localStorage.getItem('og3_clinic_'+clinicId+'_'+k);
     if(raw){try{D[k]=JSON.parse(raw);}catch{}}
@@ -5266,7 +5372,7 @@ function saveClinic(){
     const newC={...obj,id:uid(),isDefault:false,createdAt:today()};
     clinics.push(newC);
     // Initialize empty data for new clinic
-    const keys=['patients','appointments','visits','budgets','returns','stock','otherPayments','suppliers'];
+    const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers'];
     keys.forEach(k=>{localStorage.setItem('og3_clinic_'+newC.id+'_'+k,JSON.stringify([]));});
     localStorage.setItem('og3_clinic_'+newC.id+'_professionals',JSON.stringify(D.professionals||[]));
     localStorage.setItem('og3_clinic_'+newC.id+'_procs',JSON.stringify(D.procs||[]));
@@ -5282,7 +5388,7 @@ function delClinic(){
   const c=clinics.find(x=>x.id===EID);
   if(c?.isDefault){alert('Não é possível excluir a clínica padrão.');return;}
   // Remove clinic data
-  const keys=['patients','appointments','visits','budgets','returns','stock','otherPayments','suppliers','professionals','procs','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','config','messages'];
   keys.forEach(k=>{localStorage.removeItem('og3_clinic_'+EID+'_'+k);});
   clinics=clinics.filter(x=>x.id!==EID);
   saveClinics(clinics);
