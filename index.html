@@ -53,7 +53,7 @@ window._fbSignOut = async function(){
 // As 10 coleções em array e as 2 em documento único (config/messages) que já
 // eram compartilhadas por clínica no localStorage (ver migrateDataToClinic no
 // script principal) — precisa ficar em sincronia com essa mesma lista.
-const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs'];
+const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions'];
 const SINGLEDOC_COLS = ['config','messages'];
 
 window._applyingRemote = false;
@@ -477,6 +477,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <button class="nav-btn" onclick="go('patients')"><span class="nav-icon" data-ico="patients"></span><span class="nav-label">Pacientes</span></button>
   <button class="nav-btn" onclick="go('records')"><span class="nav-icon" data-ico="records"></span><span class="nav-label">Prontuário</span></button>
   <button class="nav-btn" onclick="go('budgets')"><span class="nav-icon" data-ico="budgets"></span><span class="nav-label">Orçamentos</span></button>
+  <button class="nav-btn" onclick="go('prescriptions')"><span class="nav-icon" data-ico="prescriptions"></span><span class="nav-label">Receituário</span></button>
   <button class="nav-btn" onclick="go('returns')"><span class="nav-icon" data-ico="returns"></span><span class="nav-label">Retornos</span></button>
   <div class="s-sec nav-label">Gestão</div>
   <button class="nav-btn" onclick="go('finance')"><span class="nav-icon" data-ico="finance"></span><span class="nav-label">Financeiro</span></button>
@@ -587,6 +588,17 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <button class="btn btn-p" onclick="openBud()" id="btn-new-bud">+ Novo</button>
   </div></div>
   <div id="bud-list" style="display:flex;flex-direction:column;gap:12px"></div>
+</div>
+
+<!-- PRESCRIPTIONS -->
+<div id="page-prescriptions" class="page">
+  <div class="row-flex"><div><div class="s-title">Receituário</div><div class="s-sub">Receitas digitais por paciente</div></div>
+  <div class="actions no-print">
+    <input class="inp" id="presc-search" placeholder="Buscar paciente (nome/CPF)..." style="width:200px" oninput="fillPrescSels();renderPrescriptions()"/>
+    <select class="inp" style="width:200px" id="presc-filter" onchange="renderPrescriptions()"><option value="">Todos</option></select>
+    <button class="btn btn-p" onclick="openPresc()" id="btn-new-presc">+ Nova Receita</button>
+  </div></div>
+  <div id="presc-list" style="display:flex;flex-direction:column;gap:12px"></div>
 </div>
 
 <!-- RETURNS -->
@@ -1199,6 +1211,25 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   </div>
 </div></div>
 
+<div class="overlay" id="m-presc" style="display:none" onclick="if(event.target===this)cm('presc')"><div class="modal modal-lg" onclick="event.stopPropagation()">
+  <div class="modal-title" id="m-presc-t">Receita</div>
+  <div class="g2" style="gap:9px;margin-bottom:12px">
+    <div><label>Paciente</label><select class="inp" id="presc-pat"></select></div>
+    <div><label>Profissional</label><select class="inp" id="presc-pro"></select></div>
+    <div><label>Data</label><input type="date" class="inp" id="presc-date"/></div>
+  </div>
+  <div class="form-sec">Medicamentos / Prescrição</div>
+  <div id="presc-items"></div>
+  <button class="btn btn-o btn-sm" style="margin-top:8px" onclick="addPrescItem()">+ Medicamento</button>
+  <div style="margin-top:12px"><label>Orientações Gerais</label><textarea class="inp" id="presc-notes" rows="2" placeholder="Ex: Tomar após as refeições, evitar bebida alcoólica..."></textarea></div>
+  <div class="modal-footer">
+    <button class="btn btn-r btn-sm" id="presc-del" style="display:none" onclick="delPresc()">Excluir</button>
+    <button class="btn btn-o" onclick="cm('presc')">Cancelar</button>
+    <button class="btn btn-g" onclick="printPresc()">🖨️</button>
+    <button class="btn btn-p" onclick="savePresc()">Salvar</button>
+  </div>
+</div></div>
+
 <div class="overlay" id="m-ret" style="display:none" onclick="if(event.target===this)cm('ret')"><div class="modal" onclick="event.stopPropagation()" style="max-width:460px">
   <div class="modal-title" id="m-ret-t">Retorno</div>
   <div style="display:flex;flex-direction:column;gap:10px">
@@ -1503,6 +1534,7 @@ stock:[
 otherPayments:[],
 equipment:[],
 suppliers:[],
+prescriptions:[],
 roles:["Dentista","Endodontista","Ortodontista","Implantodontista","Periodontista","Técnico","Auxiliar","Secretária","Recepcionista"],
 config:{name:"Consultório OdontoGuest",phone:"",addr:"",cro:"",logo:"",accentColor:"#0c6e9e"},
 procs:DEF_PROCS,
@@ -1788,6 +1820,7 @@ const OG_ICO = {
   records:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
   budgets:'<path d="M12 3v18"/><path d="M3 9h6l3-6 3 6h6"/><path d="M3 15h6l3 6 3-6h6"/>',
   returns:'<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+  prescriptions:'<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>',
   finance:'<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>',
   otherpay:'<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M6 10h4"/><path d="M14 10h4"/><path d="M6 14h2"/><path d="M12 14h6"/><path d="M2 10h20"/>',
   stock:'<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
@@ -1859,10 +1892,10 @@ function go(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
-  const pages=['dashboard','agenda','patients','records','budgets','returns','finance','otherpay','stock','equipment','shopping','suppliers','professionals','clinics','notifications','reports','advreports','messages','admin','backup'];
+  const pages=['dashboard','agenda','patients','records','budgets','prescriptions','returns','finance','otherpay','stock','equipment','shopping','suppliers','professionals','clinics','notifications','reports','advreports','messages','admin','backup'];
   document.querySelectorAll('.nav-btn')[pages.indexOf(page)]?.classList.add('active');
   activePage=page;
-  const R={dashboard:renderDashboard,agenda:renderAgenda,patients:renderPatients,records:renderRecords,budgets:renderBudgets,returns:renderReturns,finance:renderFinance,otherpay:renderOtherPay,stock:renderStock,equipment:renderEquipment,shopping:renderShopping,suppliers:renderSuppliers,professionals:renderProfessionals,clinics:renderClinics,notifications:renderNotifications,reports:renderReports,advreports:renderAdvReports,messages:renderMessages,admin:renderAdmin,backup:renderBackup};
+  const R={dashboard:renderDashboard,agenda:renderAgenda,patients:renderPatients,records:renderRecords,budgets:renderBudgets,prescriptions:renderPrescriptions,returns:renderReturns,finance:renderFinance,otherpay:renderOtherPay,stock:renderStock,equipment:renderEquipment,shopping:renderShopping,suppliers:renderSuppliers,professionals:renderProfessionals,clinics:renderClinics,notifications:renderNotifications,reports:renderReports,advreports:renderAdvReports,messages:renderMessages,admin:renderAdmin,backup:renderBackup};
   R[page]?.();
   closeSidebarMobile();
 }
@@ -2537,7 +2570,7 @@ function buildAuditEntry(action,oldObj,newObj){
 // Complementa o audit trail de visitas acima (que é field-a-field, específico de
 // prontuário) — aqui é só "isso existiu, foi apagado, por quem e quando", com uma
 // cópia completa do registro (snapshot), pra qualquer entidade do sistema.
-const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Equipamento',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
+const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',prescription:'Receita',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Equipamento',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
 function logDeletion(type,obj){
   if(!D._auditDeleted)D._auditDeleted=[];
   D._auditDeleted.push({timestamp:new Date().toISOString(),userId:CU?.id||0,userName:CU?.dispName||'Sistema',action:'excluir',type,snapshot:JSON.parse(JSON.stringify(obj))});
@@ -2940,6 +2973,121 @@ function printBud(){
     <div><span>Saldo Restante:</span><span class="total">${fmt(discVal-paid)}</span></div>
   </div>
   <div class="sign"><div class="line"></div>Assinatura do Paciente</div>
+  <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')} — OdontoGuest v3.9</div>
+  <script>window.print();<\/script><!-- COPYRIGHT -->
+<div style="display:none" id="og-copyright" aria-hidden="true">© 2026 OdontoGuest. Todos os direitos reservados. Protegido pela Lei 9.610/1998. Uso não autorizado é proibido.</div>
+</body></html>`);
+}
+
+// ─── PRESCRIPTIONS ─────────────────────────────────────────
+function fillPrescSels(){
+  const opts='<option value="">Selecione...</option>'+D.patients.map(p=>`<option value="${p.id}">${patDisp(p.id)||p.name}</option>`).join('');
+  const pp=document.getElementById('presc-pat');if(pp){const prev=pp.value;pp.innerHTML=opts;if(prev)pp.value=prev;}
+  const ppro=document.getElementById('presc-pro');if(ppro){const prev=ppro.value;ppro.innerHTML='<option value="">Selecione...</option>'+D.professionals.map(p=>`<option value="${p.id}">${p.dispName}</option>`).join('');if(prev)ppro.value=prev;}
+  const f=document.getElementById('presc-filter');
+  if(f){
+    const prev=f.value;
+    const q=(document.getElementById('presc-search')?.value||'').toLowerCase().trim();
+    const qd=q.replace(/\D/g,'');
+    const fil=D.patients.filter(p=>{if(!q)return true;const txt=((p.name||'')+' '+(p.social||'')+' '+(p.cpf||'')).toLowerCase();if(txt.includes(q))return true;if(qd && (p.cpf||'').replace(/\D/g,'').includes(qd))return true;return false;});
+    f.innerHTML='<option value="">Todos</option>'+fil.map(p=>`<option value="${p.id}">${patDisp(p.id)||p.name}${p.cpf?' — '+p.cpf:''}</option>`).join('');
+    if(prev&&fil.find(p=>p.id==prev))f.value=prev;
+  }
+}
+function addPrescItem(text){
+  const div=document.createElement('div');div.style.cssText='display:flex;gap:6px;margin-bottom:7px;align-items:center';
+  div.innerHTML=`<input class="inp presc-item" style="flex:1" placeholder="Ex: Amoxicilina 500mg — 1 cápsula de 8/8h por 7 dias"/>
+    <button onclick="this.parentNode.remove()" style="background:none;border:none;color:var(--R);font-size:17px;cursor:pointer;flex-shrink:0">✕</button>`;
+  if(text)div.querySelector('.presc-item').value=text;
+  document.getElementById('presc-items').appendChild(div);
+}
+function openPresc(id){
+  if(!canEdit()&&!id)return;EID=id||null;fillPrescSels();
+  const r=id?D.prescriptions.find(x=>x.id===id):{};
+  document.getElementById('m-presc-t').textContent=id?'Editar Receita':'Nova Receita';
+  const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
+  sv('presc-pat',r.patientId);sv('presc-pro',r.professionalId||CU?.id);sv('presc-date',r.date||today());sv('presc-notes',r.notes);
+  document.getElementById('presc-items').innerHTML='';(r.items&&r.items.length?r.items:['']).forEach(t=>addPrescItem(t));
+  document.getElementById('presc-del').style.display=(id&&canDelete())?'inline-flex':'none';om('presc');
+}
+function savePresc(){
+  if(!canEdit())return;const patId=+document.getElementById('presc-pat').value;if(!patId){alert('Selecione paciente.');return;}
+  const items=[...document.querySelectorAll('#presc-items .presc-item')].map(i=>i.value.trim()).filter(Boolean);
+  if(!items.length){alert('Adicione ao menos um medicamento/prescrição.');return;}
+  const obj={patientId:patId,professionalId:+document.getElementById('presc-pro').value,date:document.getElementById('presc-date').value,items,notes:document.getElementById('presc-notes').value};
+  EID?D.prescriptions=D.prescriptions.map(r=>r.id===EID?{...obj,id:EID}:r):D.prescriptions.push({...obj,id:uid()});
+  save('prescriptions');cm('presc');renderPrescriptions();
+}
+function delPresc(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.prescriptions.find(r=>r.id===EID);if(obj)logDeletion('prescription',obj);D.prescriptions=D.prescriptions.filter(r=>r.id!==EID);save('prescriptions');cm('presc');renderPrescriptions();}
+function renderPrescriptions(){
+  fillPrescSels();const filt=document.getElementById('presc-filter')?.value||'';
+  const list=(filt?D.prescriptions.filter(r=>r.patientId===+filt):D.prescriptions).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('presc-list').innerHTML=list.map(r=>{
+    const p=getPat(r.patientId),pr=getPro(r.professionalId);
+    return`<div class="card" style="cursor:pointer;border-left:4px solid var(--P)" onclick="openPresc(${r.id})">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div><div style="font-weight:800;font-size:15px">${patDisp(r.patientId)} ${waBadge(p.phone)}</div>
+        <div style="font-size:11.5px;color:var(--t3)">${new Date(r.date+'T00:00:00').toLocaleDateString('pt-BR')} · ${pr.dispName||'—'}</div></div>
+        <button class="btn btn-g btn-sm" onclick="event.stopPropagation();EID=${r.id};openPresc(${r.id});setTimeout(printPresc,300)">🖨️</button>
+      </div>
+      ${(r.items||[]).map(t=>`<div style="font-size:13px;padding:3px 0;border-bottom:1px solid #f1f5f9">💊 ${t}</div>`).join('')}
+    </div>`;
+  }).join('')||'<div class="card" style="color:var(--t3)">Nenhuma receita cadastrada.</div>';
+}
+function printPresc(){
+  const patId=+document.getElementById('presc-pat').value,p=getPat(patId),pr=getPro(+document.getElementById('presc-pro').value);
+  const items=[...document.querySelectorAll('#presc-items .presc-item')].map(i=>i.value.trim()).filter(Boolean);
+  const date=document.getElementById('presc-date').value,notes=document.getElementById('presc-notes').value,cfg=D.config||{};
+  const accent=cfg.accentColor||'#0c6e9e';
+  const pw=window.open('','_blank');
+  pw.document.write(`<!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║                      OdontoGuest v3.9                        ║
+  ║              Sistema de Gestão Odontológica                  ║
+  ╠══════════════════════════════════════════════════════════════╣
+  ║  © 2026 OdontoGuest. Todos os direitos reservados.           ║
+  ║  Protegido pela Lei de Direitos Autorais nº 9.610/1998.      ║
+  ║                                                              ║
+  ║  É expressamente proibido:                                   ║
+  ║  • Copiar, modificar ou distribuir este software             ║
+  ║  • Usar o código para fins comerciais sem autorização        ║
+  ║  • Remover ou alterar este aviso de direitos autorais        ║
+  ║                                                              ║
+  ║  Violações estão sujeitas a sanções civis e criminais.       ║
+  ╚══════════════════════════════════════════════════════════════╝
+--><html><head><title>Receita — ${p.name}</title><style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;padding:34px;max-width:680px;margin:auto;color:#1e293b}
+  .hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid ${accent};padding-bottom:14px;margin-bottom:16px}
+  .hd img{width:58px;height:58px;object-fit:contain;border-radius:10px;flex-shrink:0}
+  .hd-name{font-size:19px;font-weight:800;color:${accent}}
+  .hd-meta{font-size:11.5px;color:#64748b;margin-top:2px;line-height:1.5}
+  h1{font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:#64748b;margin:0 0 14px}
+  .info{display:flex;justify-content:space-between;font-size:13px;margin-bottom:20px;padding:12px 14px;background:#f8fafc;border-radius:10px}
+  .rx{font-size:34px;color:${accent};font-weight:800;margin-bottom:10px}
+  .items div{font-size:14.5px;padding:10px 0;border-bottom:1px solid #e2e8f0}
+  .notes{margin-top:18px;font-size:13px;color:#475569;background:#f8fafc;border-radius:10px;padding:12px 14px}
+  .footer{margin-top:40px;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
+  .sign{margin-top:44px;font-size:13px;text-align:center}
+  .sign .line{border-top:1px solid #94a3b8;width:320px;margin:0 auto 6px}
+  </style></head><body>
+  <div class="hd">
+  ${cfg.logo?`<img src="${cfg.logo}"/>`:''}
+  <div><div class="hd-name">${cfg.name||'Consultório Odontológico'}</div>
+  <div class="hd-meta">${cfg.cro?cfg.cro+' &nbsp;·&nbsp; ':''}${cfg.phone?cfg.phone+' &nbsp;·&nbsp; ':''}${cfg.addr||''}</div></div>
+  </div>
+  <h1>Receituário</h1>
+  <div class="info">
+    <div><b>Paciente:</b> ${p.name}${p.social?' ('+p.social+')':''}</div>
+    <div><b>Data:</b> ${date?new Date(date+'T00:00:00').toLocaleDateString('pt-BR'):new Date().toLocaleDateString('pt-BR')}</div>
+  </div>
+  <div class="rx">℞</div>
+  <div class="items">
+  ${items.map(t=>`<div>${t}</div>`).join('')}
+  </div>
+  ${notes?`<div class="notes"><b>Orientações:</b> ${notes}</div>`:''}
+  <div class="sign"><div class="line"></div>${pr.dispName||''}</div>
   <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')} — OdontoGuest v3.9</div>
   <script>window.print();<\/script><!-- COPYRIGHT -->
 <div style="display:none" id="og-copyright" aria-hidden="true">© 2026 OdontoGuest. Todos os direitos reservados. Protegido pela Lei 9.610/1998. Uso não autorizado é proibido.</div>
@@ -5582,7 +5730,7 @@ function initMulticlinic(){
 }
 
 function migrateDataToClinic(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','config','messages'];
   keys.forEach(k=>{
     const existing=LS.get(k);
     if(existing!==null){
@@ -5635,7 +5783,7 @@ window._onFirestoreCollectionUpdate=function(key,data,cache){
 // ── Passo 7: terceira camada de save() — sobe pro Firestore o que mudou ──
 // Segue o mesmo padrão já documentado (reatribuição, nunca `function save(k){}`
 // de novo — é o bug de recursão infinita já resolvido uma vez neste arquivo).
-const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs'];
+const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions'];
 const FB_SINGLEDOC_KEYS=['config','messages'];
 function fbDocIdFor(key,rec){
   return key==='professionals' ? String(rec.email||'').toLowerCase().trim() : String(rec.id);
@@ -5706,7 +5854,7 @@ function switchClinic(id){
 
 function saveAllClinicData(){
   if(!activeClinicId)return;
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','config','messages'];
   keys.forEach(k=>{
     if(D[k]!==undefined){
       localStorage.setItem('og3_clinic_'+activeClinicId+'_'+k,JSON.stringify(D[k]));
@@ -5715,7 +5863,7 @@ function saveAllClinicData(){
 }
 
 function loadClinicData(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','config','messages'];
   keys.forEach(k=>{
     const raw=localStorage.getItem('og3_clinic_'+clinicId+'_'+k);
     if(raw){try{D[k]=JSON.parse(raw);}catch{}}
@@ -5746,7 +5894,7 @@ function saveClinic(){
     const newC={...obj,id:uid(),isDefault:false,createdAt:today()};
     clinics.push(newC);
     // Initialize empty data for new clinic
-    const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers'];
+    const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','prescriptions'];
     keys.forEach(k=>{localStorage.setItem('og3_clinic_'+newC.id+'_'+k,JSON.stringify([]));});
     localStorage.setItem('og3_clinic_'+newC.id+'_professionals',JSON.stringify(D.professionals||[]));
     localStorage.setItem('og3_clinic_'+newC.id+'_procs',JSON.stringify(D.procs||[]));
@@ -5762,7 +5910,7 @@ function delClinic(){
   const c=clinics.find(x=>x.id===EID);
   if(c?.isDefault){alert('Não é possível excluir a clínica padrão.');return;}
   // Remove clinic data
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','config','messages'];
   keys.forEach(k=>{localStorage.removeItem('og3_clinic_'+EID+'_'+k);});
   clinics=clinics.filter(x=>x.id!==EID);
   saveClinics(clinics);
