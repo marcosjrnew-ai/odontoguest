@@ -668,6 +668,16 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <div style="font-size:11.5px;color:var(--t3);margin-bottom:10px">Receita = valores recebidos de pacientes. Custos: aluguel e materiais comprados pelo profissional (Outros Pagamentos). Usa o filtro de profissional acima.</div>
     <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Período</th><th>Receita</th><th>Aluguel</th><th>Materiais</th><th>Lucro/Prejuízo</th></tr></thead><tbody id="rep-pl-body"></tbody></table></div>
   </div>
+  <div class="card" style="margin-top:14px">
+    <div class="row-flex" style="margin-bottom:4px"><div class="card-hd" style="margin-bottom:0"><span class="nav-icon" data-ico="reports"></span> Livro-Caixa (Carnê-Leão)</div>
+      <div class="actions no-print" style="gap:8px">
+        <select class="inp" id="lc-year" style="width:110px" onchange="renderLivroCaixa()"></select>
+        <button class="btn btn-g btn-sm" onclick="exportLivroCaixa()">📥 Exportar CSV</button>
+      </div>
+    </div>
+    <div style="font-size:11.5px;color:var(--t3);margin-bottom:10px">Receita bruta e despesas dedutíveis (aluguel e materiais) por mês, ano civil completo — pronto para a declaração mensal do Carnê-Leão. Usa o filtro de profissional acima.</div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Mês</th><th>Receita Bruta</th><th>Aluguel</th><th>Materiais</th><th>Despesas Dedutíveis</th><th>Base de Cálculo</th></tr></thead><tbody id="lc-body"></tbody></table></div>
+  </div>
 </div>
 
 <!-- OTHER PAYMENTS -->
@@ -4758,6 +4768,65 @@ function renderProfitLossTable(){
   }).join('');
 }
 
+// ─── LIVRO-CAIXA (Carnê-Leão) — receita e despesas dedutíveis por mês ──
+// Ano civil completo (Jan-Dez), diferente de _periodRanges('month',...) que
+// usa os últimos 12 meses corridos a partir de hoje — declaração de imposto
+// precisa do ano-calendário exato, não de uma janela móvel.
+function _calendarMonthRanges(year){
+  const iso=d=>d.toISOString().slice(0,10);
+  const months=[];
+  for(let m=0;m<12;m++){
+    const s=new Date(year,m,1),e=new Date(year,m+1,0);
+    months.push({label:s.toLocaleDateString('pt-BR',{month:'long'}),from:iso(s),to:iso(e)});
+  }
+  return months;
+}
+function fillLivroCaixaYears(){
+  const sel=document.getElementById('lc-year');if(!sel)return;
+  const prev=sel.value;
+  const years=new Set([new Date().getFullYear()]);
+  D.visits.forEach(v=>v.date&&years.add(+v.date.slice(0,4)));
+  D.otherPayments.forEach(o=>o.date&&years.add(+o.date.slice(0,4)));
+  const sorted=[...years].sort((a,b)=>b-a);
+  sel.innerHTML=sorted.map(y=>`<option value="${y}">${y}</option>`).join('');
+  sel.value=prev&&sorted.includes(+prev)?prev:String(new Date().getFullYear());
+}
+function renderLivroCaixa(){
+  fillLivroCaixaYears();
+  const year=+document.getElementById('lc-year')?.value||new Date().getFullYear();
+  const proFilt=document.getElementById('rep-pro-filter')?.value||'';
+  const months=_calendarMonthRanges(year);
+  let totR=0,totA=0,totM=0;
+  const body=months.map(mo=>{
+    const{receita,aluguel,materiais,lucro}=_profitLossForRange(mo.from,mo.to,proFilt);
+    totR+=receita;totA+=aluguel;totM+=materiais;
+    return`<tr><td style="font-weight:700;text-transform:capitalize">${mo.label}</td><td>${fmt(receita)}</td><td>${fmt(aluguel)}</td><td>${fmt(materiais)}</td><td>${fmt(aluguel+materiais)}</td><td style="font-weight:800;color:${lucro<0?'#dc2626':'#16a34a'}">${fmt(lucro)}</td></tr>`;
+  }).join('');
+  const totLucro=totR-totA-totM;
+  const totalRow=`<tr style="border-top:2px solid var(--border);font-weight:900"><td>Total ${year}</td><td>${fmt(totR)}</td><td>${fmt(totA)}</td><td>${fmt(totM)}</td><td>${fmt(totA+totM)}</td><td style="color:${totLucro<0?'#dc2626':'#16a34a'}">${fmt(totLucro)}</td></tr>`;
+  const el=document.getElementById('lc-body');if(el)el.innerHTML=body+totalRow;
+}
+function exportLivroCaixa(){
+  const year=+document.getElementById('lc-year')?.value||new Date().getFullYear();
+  const proFilt=document.getElementById('rep-pro-filter')?.value||'';
+  const proLabel=proFilt?(getPro(+proFilt).dispName||'Profissional'):'Todos os Profissionais';
+  const months=_calendarMonthRanges(year);
+  const header=['Mês','Receita Bruta','Aluguel','Materiais','Despesas Dedutíveis','Base de Cálculo'].map(csvEsc).join(',');
+  let totR=0,totA=0,totM=0;
+  const lines=months.map(mo=>{
+    const{receita,aluguel,materiais,lucro}=_profitLossForRange(mo.from,mo.to,proFilt);
+    totR+=receita;totA+=aluguel;totM+=materiais;
+    return[mo.label,receita.toFixed(2),aluguel.toFixed(2),materiais.toFixed(2),(aluguel+materiais).toFixed(2),lucro.toFixed(2)].map(csvEsc).join(',');
+  });
+  const totLucro=totR-totA-totM;
+  lines.push(['Total '+year,totR.toFixed(2),totA.toFixed(2),totM.toFixed(2),(totA+totM).toFixed(2),totLucro.toFixed(2)].map(csvEsc).join(','));
+  const csv='﻿'+csvEsc(`Livro-Caixa ${year} — ${proLabel}`)+'\n'+header+'\n'+lines.join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`odontoguest_livro_caixa_${year}.csv`;a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ─── REPORTS (per professional) ─────────────────────────────
 function renderReports(){
   // Fill professional filter
@@ -4847,6 +4916,7 @@ function renderReports(){
   // Draw chart
   drawReportChart(entries);
   renderProfitLossTable();
+  renderLivroCaixa();
 }
 
 function drawReportChart(entries){
