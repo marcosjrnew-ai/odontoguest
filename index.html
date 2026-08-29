@@ -53,7 +53,7 @@ window._fbSignOut = async function(){
 // As 10 coleções em array e as 2 em documento único (config/messages) que já
 // eram compartilhadas por clínica no localStorage (ver migrateDataToClinic no
 // script principal) — precisa ficar em sincronia com essa mesma lista.
-const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions'];
+const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts'];
 const SINGLEDOC_COLS = ['config','messages'];
 
 window._applyingRemote = false;
@@ -478,6 +478,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <button class="nav-btn" onclick="go('records')"><span class="nav-icon" data-ico="records"></span><span class="nav-label">Prontuário</span></button>
   <button class="nav-btn" onclick="go('budgets')"><span class="nav-icon" data-ico="budgets"></span><span class="nav-label">Orçamentos</span></button>
   <button class="nav-btn" onclick="go('prescriptions')"><span class="nav-icon" data-ico="prescriptions"></span><span class="nav-label">Receituário</span></button>
+  <button class="nav-btn" onclick="go('receipts')"><span class="nav-icon" data-ico="receipts"></span><span class="nav-label">Recibos</span></button>
   <button class="nav-btn" onclick="go('returns')"><span class="nav-icon" data-ico="returns"></span><span class="nav-label">Retornos</span></button>
   <div class="s-sec nav-label">Gestão</div>
   <button class="nav-btn" onclick="go('finance')"><span class="nav-icon" data-ico="finance"></span><span class="nav-label">Financeiro</span></button>
@@ -599,6 +600,17 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <button class="btn btn-p" onclick="openPresc()" id="btn-new-presc">+ Nova Receita</button>
   </div></div>
   <div id="presc-list" style="display:flex;flex-direction:column;gap:12px"></div>
+</div>
+
+<!-- RECEIPTS -->
+<div id="page-receipts" class="page">
+  <div class="row-flex"><div><div class="s-title">Recibos</div><div class="s-sub">Recibo de prestação de serviço — pagamentos recebidos de pacientes (Carnê-Leão)</div></div>
+  <div class="actions no-print">
+    <input class="inp" id="receipt-search" placeholder="Buscar paciente (nome/CPF)..." style="width:200px" oninput="fillReceiptSels();renderReceipts()"/>
+    <select class="inp" style="width:200px" id="receipt-filter" onchange="renderReceipts()"><option value="">Todos</option></select>
+    <button class="btn btn-p" onclick="openReceipt()" id="btn-new-receipt">+ Novo Recibo</button>
+  </div></div>
+  <div id="receipt-list" style="display:flex;flex-direction:column;gap:12px"></div>
 </div>
 
 <!-- RETURNS -->
@@ -736,6 +748,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
         <div><label>Telefone/WhatsApp</label><input class="inp" id="cfg-phone"/></div>
         <div><label>Endereço</label><input class="inp" id="cfg-addr"/></div>
         <div><label>CRO (profissional responsável)</label><input class="inp" id="cfg-cro" placeholder="Ex: CRO/RJ: 34449"/></div>
+        <div><label>CPF/CNPJ (para recibos e Carnê-Leão)</label><input class="inp" id="cfg-taxid" placeholder="Ex: 123.456.789-00"/></div>
         <div class="g2" style="gap:9px">
           <div><label>Logo do Consultório</label>
             <div style="display:flex;align-items:center;gap:10px">
@@ -1230,6 +1243,27 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   </div>
 </div></div>
 
+<div class="overlay" id="m-receipt" style="display:none" onclick="if(event.target===this)cm('receipt')"><div class="modal" onclick="event.stopPropagation()" style="max-width:520px">
+  <div class="modal-title" id="m-receipt-t">Recibo</div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div><label>Paciente</label><select class="inp" id="receipt-pat"></select></div>
+    <div><label>Profissional</label><select class="inp" id="receipt-pro"></select></div>
+    <div class="g2" style="gap:9px">
+      <div><label>Data</label><input type="date" class="inp" id="receipt-date"/></div>
+      <div><label>Valor Recebido (R$)</label><input type="number" class="inp" id="receipt-value" min="0" step="0.01" oninput="updateReceiptExtenso()"/></div>
+    </div>
+    <div><label>Forma de Pagamento</label><select class="inp" id="receipt-pay"><option value="pix">PIX</option><option value="cash">Dinheiro</option><option value="debit">Débito</option><option value="credit">Crédito</option><option value="plan">Convênio</option></select></div>
+    <div><label>Referente a</label><input class="inp" id="receipt-desc" placeholder="Ex: Consulta e limpeza dental"/></div>
+    <div id="receipt-extenso" style="font-size:11.5px;color:var(--t3);font-style:italic"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-r btn-sm" id="receipt-del" style="display:none" onclick="delReceipt()">Excluir</button>
+    <button class="btn btn-o" onclick="cm('receipt')">Cancelar</button>
+    <button class="btn btn-g" onclick="printReceipt()">🖨️</button>
+    <button class="btn btn-p" onclick="saveReceipt()">Salvar</button>
+  </div>
+</div></div>
+
 <div class="overlay" id="m-ret" style="display:none" onclick="if(event.target===this)cm('ret')"><div class="modal" onclick="event.stopPropagation()" style="max-width:460px">
   <div class="modal-title" id="m-ret-t">Retorno</div>
   <div style="display:flex;flex-direction:column;gap:10px">
@@ -1535,8 +1569,9 @@ otherPayments:[],
 equipment:[],
 suppliers:[],
 prescriptions:[],
+receipts:[],
 roles:["Dentista","Endodontista","Ortodontista","Implantodontista","Periodontista","Técnico","Auxiliar","Secretária","Recepcionista"],
-config:{name:"Consultório OdontoGuest",phone:"",addr:"",cro:"",logo:"",accentColor:"#0c6e9e"},
+config:{name:"Consultório OdontoGuest",phone:"",addr:"",cro:"",taxId:"",logo:"",accentColor:"#0c6e9e"},
 procs:DEF_PROCS,
 };
 
@@ -1821,6 +1856,7 @@ const OG_ICO = {
   budgets:'<path d="M12 3v18"/><path d="M3 9h6l3-6 3 6h6"/><path d="M3 15h6l3 6 3-6h6"/>',
   returns:'<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
   prescriptions:'<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>',
+  receipts:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/>',
   finance:'<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>',
   otherpay:'<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M6 10h4"/><path d="M14 10h4"/><path d="M6 14h2"/><path d="M12 14h6"/><path d="M2 10h20"/>',
   stock:'<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
@@ -1892,10 +1928,10 @@ function go(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
-  const pages=['dashboard','agenda','patients','records','budgets','prescriptions','returns','finance','otherpay','stock','equipment','shopping','suppliers','professionals','clinics','notifications','reports','advreports','messages','admin','backup'];
+  const pages=['dashboard','agenda','patients','records','budgets','prescriptions','receipts','returns','finance','otherpay','stock','equipment','shopping','suppliers','professionals','clinics','notifications','reports','advreports','messages','admin','backup'];
   document.querySelectorAll('.nav-btn')[pages.indexOf(page)]?.classList.add('active');
   activePage=page;
-  const R={dashboard:renderDashboard,agenda:renderAgenda,patients:renderPatients,records:renderRecords,budgets:renderBudgets,prescriptions:renderPrescriptions,returns:renderReturns,finance:renderFinance,otherpay:renderOtherPay,stock:renderStock,equipment:renderEquipment,shopping:renderShopping,suppliers:renderSuppliers,professionals:renderProfessionals,clinics:renderClinics,notifications:renderNotifications,reports:renderReports,advreports:renderAdvReports,messages:renderMessages,admin:renderAdmin,backup:renderBackup};
+  const R={dashboard:renderDashboard,agenda:renderAgenda,patients:renderPatients,records:renderRecords,budgets:renderBudgets,prescriptions:renderPrescriptions,receipts:renderReceipts,returns:renderReturns,finance:renderFinance,otherpay:renderOtherPay,stock:renderStock,equipment:renderEquipment,shopping:renderShopping,suppliers:renderSuppliers,professionals:renderProfessionals,clinics:renderClinics,notifications:renderNotifications,reports:renderReports,advreports:renderAdvReports,messages:renderMessages,admin:renderAdmin,backup:renderBackup};
   R[page]?.();
   closeSidebarMobile();
 }
@@ -2570,7 +2606,7 @@ function buildAuditEntry(action,oldObj,newObj){
 // Complementa o audit trail de visitas acima (que é field-a-field, específico de
 // prontuário) — aqui é só "isso existiu, foi apagado, por quem e quando", com uma
 // cópia completa do registro (snapshot), pra qualquer entidade do sistema.
-const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',prescription:'Receita',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Equipamento',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
+const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',prescription:'Receita',receipt:'Recibo',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Equipamento',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
 function logDeletion(type,obj){
   if(!D._auditDeleted)D._auditDeleted=[];
   D._auditDeleted.push({timestamp:new Date().toISOString(),userId:CU?.id||0,userName:CU?.dispName||'Sistema',action:'excluir',type,snapshot:JSON.parse(JSON.stringify(obj))});
@@ -3094,6 +3130,164 @@ function printPresc(){
 </body></html>`);
 }
 
+// ─── VALOR POR EXTENSO (pt-BR, uso em recibos) ──────────────
+const _EXT_UN=['','um','dois','três','quatro','cinco','seis','sete','oito','nove'];
+const _EXT_10_19=['dez','onze','doze','treze','catorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+const _EXT_DEZ=['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+const _EXT_CEM=['','cento','duzentos','trezentos','quatrocentos','quinhentos','seiscentos','setecentos','oitocentos','novecentos'];
+function _extensoGrupo(n){
+  if(n===0)return'';
+  if(n===100)return'cem';
+  const partes=[];
+  const c=Math.floor(n/100),r=n%100;
+  if(c)partes.push(_EXT_CEM[c]);
+  if(r>=10&&r<20)partes.push(_EXT_10_19[r-10]);
+  else{
+    const d=Math.floor(r/10),u=r%10;
+    let s=_EXT_DEZ[d]||'';
+    if(u)s=s?s+' e '+_EXT_UN[u]:_EXT_UN[u];
+    if(s)partes.push(s);
+  }
+  return partes.join(' e ');
+}
+function numeroPorExtenso(n){
+  n=Math.floor(n);
+  if(n===0)return'zero';
+  const milhoes=Math.floor(n/1000000),milhares=Math.floor((n%1000000)/1000),resto=n%1000;
+  const partes=[];
+  if(milhoes)partes.push(_extensoGrupo(milhoes)+(milhoes===1?' milhão':' milhões'));
+  if(milhares)partes.push(milhares===1?'mil':_extensoGrupo(milhares)+' mil');
+  if(resto)partes.push(_extensoGrupo(resto));
+  return partes.join(' e ');
+}
+function valorPorExtenso(valor){
+  valor=Math.round((+valor||0)*100)/100;
+  const reais=Math.floor(valor),centavos=Math.round((valor-reais)*100);
+  const milhoesRedondo=reais>=1000000&&reais%1000000===0;
+  let s=(reais>0?numeroPorExtenso(reais):'zero')+(milhoesRedondo?' de ':' ')+(reais===1?'real':'reais');
+  if(centavos>0)s+=' e '+numeroPorExtenso(centavos)+' '+(centavos===1?'centavo':'centavos');
+  return s;
+}
+
+// ─── RECEIPTS (Recibo de Prestação de Serviço / Carnê-Leão) ─
+function fillReceiptSels(){
+  const opts='<option value="">Selecione...</option>'+D.patients.map(p=>`<option value="${p.id}">${patDisp(p.id)||p.name}</option>`).join('');
+  const rp=document.getElementById('receipt-pat');if(rp){const prev=rp.value;rp.innerHTML=opts;if(prev)rp.value=prev;}
+  const rpro=document.getElementById('receipt-pro');if(rpro){const prev=rpro.value;rpro.innerHTML='<option value="">Selecione...</option>'+D.professionals.map(p=>`<option value="${p.id}">${p.dispName}</option>`).join('');if(prev)rpro.value=prev;}
+  const f=document.getElementById('receipt-filter');
+  if(f){
+    const prev=f.value;
+    const q=(document.getElementById('receipt-search')?.value||'').toLowerCase().trim();
+    const qd=q.replace(/\D/g,'');
+    const fil=D.patients.filter(p=>{if(!q)return true;const txt=((p.name||'')+' '+(p.social||'')+' '+(p.cpf||'')).toLowerCase();if(txt.includes(q))return true;if(qd && (p.cpf||'').replace(/\D/g,'').includes(qd))return true;return false;});
+    f.innerHTML='<option value="">Todos</option>'+fil.map(p=>`<option value="${p.id}">${patDisp(p.id)||p.name}${p.cpf?' — '+p.cpf:''}</option>`).join('');
+    if(prev&&fil.find(p=>p.id==prev))f.value=prev;
+  }
+}
+function updateReceiptExtenso(){
+  const v=+document.getElementById('receipt-value')?.value||0;
+  const el=document.getElementById('receipt-extenso');
+  if(el)el.textContent=v>0?('('+valorPorExtenso(v)+')'):'';
+}
+function _nextReceiptNum(){
+  return (D.receipts.reduce((m,r)=>Math.max(m,r.num||0),0))+1;
+}
+function openReceipt(id){
+  if(!canEdit()&&!id)return;EID=id||null;fillReceiptSels();
+  const r=id?D.receipts.find(x=>x.id===id):{};
+  document.getElementById('m-receipt-t').textContent=id?'Editar Recibo Nº '+(r.num||''):'Novo Recibo';
+  const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
+  sv('receipt-pat',r.patientId);sv('receipt-pro',r.professionalId||CU?.id);sv('receipt-date',r.date||today());sv('receipt-value',r.value||'');sv('receipt-pay',r.payMethod||'pix');sv('receipt-desc',r.desc);
+  updateReceiptExtenso();
+  document.getElementById('receipt-del').style.display=(id&&canDelete())?'inline-flex':'none';om('receipt');
+}
+function saveReceipt(){
+  if(!canEdit())return;
+  const patId=+document.getElementById('receipt-pat').value;if(!patId){alert('Selecione paciente.');return;}
+  const value=+document.getElementById('receipt-value').value||0;if(value<=0){alert('Informe o valor recebido.');return;}
+  const obj={patientId:patId,professionalId:+document.getElementById('receipt-pro').value,date:document.getElementById('receipt-date').value,value,payMethod:document.getElementById('receipt-pay').value,desc:document.getElementById('receipt-desc').value};
+  if(EID){
+    D.receipts=D.receipts.map(r=>r.id===EID?{...r,...obj}:r);
+  }else{
+    D.receipts.push({...obj,id:uid(),num:_nextReceiptNum()});
+  }
+  save('receipts');cm('receipt');renderReceipts();
+}
+function delReceipt(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.receipts.find(r=>r.id===EID);if(obj)logDeletion('receipt',obj);D.receipts=D.receipts.filter(r=>r.id!==EID);save('receipts');cm('receipt');renderReceipts();}
+function renderReceipts(){
+  fillReceiptSels();const filt=document.getElementById('receipt-filter')?.value||'';
+  const list=(filt?D.receipts.filter(r=>r.patientId===+filt):D.receipts).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('receipt-list').innerHTML=list.map(r=>{
+    const p=getPat(r.patientId);
+    return`<div class="card" style="cursor:pointer;border-left:4px solid var(--P)" onclick="openReceipt(${r.id})">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-weight:800;font-size:15px">Recibo Nº ${r.num} — ${patDisp(r.patientId)} ${waBadge(p.phone)}</div>
+        <div style="font-size:12.5px;color:var(--t2);margin-top:2px">${r.desc||''}</div>
+        <div style="font-size:11.5px;color:var(--t3);margin-top:3px">${new Date(r.date+'T00:00:00').toLocaleDateString('pt-BR')}</div></div>
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+        <span style="font-weight:900;font-size:16px;color:var(--P)">${fmt(r.value)}</span>
+        <button class="btn btn-g btn-sm" onclick="event.stopPropagation();EID=${r.id};openReceipt(${r.id});setTimeout(printReceipt,300)">🖨️</button></div>
+      </div>
+    </div>`;
+  }).join('')||'<div class="card" style="color:var(--t3)">Nenhum recibo emitido.</div>';
+}
+function printReceipt(){
+  const patId=+document.getElementById('receipt-pat').value,p=getPat(patId),pr=getPro(+document.getElementById('receipt-pro').value);
+  const value=+document.getElementById('receipt-value').value||0,date=document.getElementById('receipt-date').value;
+  const payLbl={pix:'PIX',cash:'Dinheiro',debit:'Débito',credit:'Crédito',plan:'Convênio'}[document.getElementById('receipt-pay').value]||'';
+  const desc=document.getElementById('receipt-desc').value||'serviços odontológicos prestados',cfg=D.config||{};
+  const num=EID?(D.receipts.find(r=>r.id===EID)?.num||_nextReceiptNum()):_nextReceiptNum();
+  const accent=cfg.accentColor||'#0c6e9e';
+  const pw=window.open('','_blank');
+  pw.document.write(`<!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║                      OdontoGuest v3.9                        ║
+  ║              Sistema de Gestão Odontológica                  ║
+  ╠══════════════════════════════════════════════════════════════╣
+  ║  © 2026 OdontoGuest. Todos os direitos reservados.           ║
+  ║  Protegido pela Lei de Direitos Autorais nº 9.610/1998.      ║
+  ║                                                              ║
+  ║  É expressamente proibido:                                   ║
+  ║  • Copiar, modificar ou distribuir este software             ║
+  ║  • Usar o código para fins comerciais sem autorização        ║
+  ║  • Remover ou alterar este aviso de direitos autorais        ║
+  ║                                                              ║
+  ║  Violações estão sujeitas a sanções civis e criminais.       ║
+  ╚══════════════════════════════════════════════════════════════╝
+--><html><head><title>Recibo Nº ${num} — ${p.name}</title><style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;padding:34px;max-width:680px;margin:auto;color:#1e293b}
+  .hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid ${accent};padding-bottom:14px;margin-bottom:16px}
+  .hd img{width:58px;height:58px;object-fit:contain;border-radius:10px;flex-shrink:0}
+  .hd-name{font-size:19px;font-weight:800;color:${accent}}
+  .hd-meta{font-size:11.5px;color:#64748b;margin-top:2px;line-height:1.5}
+  .titlerow{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 18px}
+  h1{font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:#64748b;margin:0}
+  .num{font-size:14px;font-weight:800;color:${accent}}
+  .value{font-size:30px;font-weight:800;color:${accent};text-align:right;margin-bottom:22px}
+  .body-txt{font-size:14.5px;line-height:1.9;text-align:justify;padding:16px 18px;background:#f8fafc;border-radius:10px}
+  .footer{margin-top:40px;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
+  .sign{margin-top:50px;font-size:13px;text-align:center}
+  .sign .line{border-top:1px solid #94a3b8;width:320px;margin:0 auto 6px}
+  </style></head><body>
+  <div class="hd">
+  ${cfg.logo?`<img src="${cfg.logo}"/>`:''}
+  <div><div class="hd-name">${cfg.name||'Consultório Odontológico'}</div>
+  <div class="hd-meta">${cfg.cro?cfg.cro+' &nbsp;·&nbsp; ':''}${cfg.taxId?'CPF/CNPJ: '+cfg.taxId+' &nbsp;·&nbsp; ':''}${cfg.phone?cfg.phone+' &nbsp;·&nbsp; ':''}${cfg.addr||''}</div></div>
+  </div>
+  <div class="titlerow"><h1>Recibo de Prestação de Serviço</h1><span class="num">Nº ${num}</span></div>
+  <div class="value">${fmt(value)}</div>
+  <div class="body-txt">Recebi de <b>${p.name}</b>${p.cpf?', CPF '+p.cpf:''}, a importância de <b>${fmt(value)}</b>
+  (${valorPorExtenso(value)}), referente a <b>${desc}</b>, ${payLbl?'pago via '+payLbl+', ':''}em ${date?new Date(date+'T00:00:00').toLocaleDateString('pt-BR'):new Date().toLocaleDateString('pt-BR')}.
+  Para maior clareza e eficácia, firmo o presente recibo.</div>
+  <div class="sign"><div class="line"></div>${pr.dispName||''}${cfg.cro?' — '+cfg.cro:''}${cfg.taxId?' — CPF/CNPJ: '+cfg.taxId:''}</div>
+  <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')} — OdontoGuest v3.9</div>
+  <script>window.print();<\/script><!-- COPYRIGHT -->
+<div style="display:none" id="og-copyright" aria-hidden="true">© 2026 OdontoGuest. Todos os direitos reservados. Protegido pela Lei 9.610/1998. Uso não autorizado é proibido.</div>
+</body></html>`);
+}
+
 // ─── RETURNS ───────────────────────────────────────────────
 function openRet(id){
   if(!canEdit()&&!id)return;EID=id||null;
@@ -3460,13 +3654,13 @@ function renderAdmin(){
     </div>`).join('');
   const cfg=D.config||{};
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
-  sv('cfg-name',cfg.name);sv('cfg-phone',cfg.phone);sv('cfg-addr',cfg.addr);sv('cfg-cro',cfg.cro);sv('cfg-color',cfg.accentColor||'#0c6e9e');
+  sv('cfg-name',cfg.name);sv('cfg-phone',cfg.phone);sv('cfg-addr',cfg.addr);sv('cfg-cro',cfg.cro);sv('cfg-taxid',cfg.taxId);sv('cfg-color',cfg.accentColor||'#0c6e9e');
   renderCfgLogoPreview();
 }
 function addRole(){const v=document.getElementById('new-role-inp').value.trim();if(!v||D.roles.includes(v))return;D.roles.push(v);save('roles');document.getElementById('new-role-inp').value='';renderAdmin();}
 function removeRole(i){if(!confirm('Remover cargo?'))return;D.roles.splice(i,1);save('roles');renderAdmin();}
 function saveCfg(){
-  D.config={name:document.getElementById('cfg-name').value,phone:document.getElementById('cfg-phone').value,addr:document.getElementById('cfg-addr').value,cro:document.getElementById('cfg-cro').value,accentColor:document.getElementById('cfg-color').value,logo:D.config?.logo||''};
+  D.config={name:document.getElementById('cfg-name').value,phone:document.getElementById('cfg-phone').value,addr:document.getElementById('cfg-addr').value,cro:document.getElementById('cfg-cro').value,taxId:document.getElementById('cfg-taxid').value,accentColor:document.getElementById('cfg-color').value,logo:D.config?.logo||''};
   save('config');alert('Configurações salvas!');
 }
 function renderCfgLogoPreview(){
@@ -5730,7 +5924,7 @@ function initMulticlinic(){
 }
 
 function migrateDataToClinic(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
   keys.forEach(k=>{
     const existing=LS.get(k);
     if(existing!==null){
@@ -5783,7 +5977,7 @@ window._onFirestoreCollectionUpdate=function(key,data,cache){
 // ── Passo 7: terceira camada de save() — sobe pro Firestore o que mudou ──
 // Segue o mesmo padrão já documentado (reatribuição, nunca `function save(k){}`
 // de novo — é o bug de recursão infinita já resolvido uma vez neste arquivo).
-const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions'];
+const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts'];
 const FB_SINGLEDOC_KEYS=['config','messages'];
 function fbDocIdFor(key,rec){
   return key==='professionals' ? String(rec.email||'').toLowerCase().trim() : String(rec.id);
@@ -5854,7 +6048,7 @@ function switchClinic(id){
 
 function saveAllClinicData(){
   if(!activeClinicId)return;
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
   keys.forEach(k=>{
     if(D[k]!==undefined){
       localStorage.setItem('og3_clinic_'+activeClinicId+'_'+k,JSON.stringify(D[k]));
@@ -5863,7 +6057,7 @@ function saveAllClinicData(){
 }
 
 function loadClinicData(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
   keys.forEach(k=>{
     const raw=localStorage.getItem('og3_clinic_'+clinicId+'_'+k);
     if(raw){try{D[k]=JSON.parse(raw);}catch{}}
@@ -5894,7 +6088,7 @@ function saveClinic(){
     const newC={...obj,id:uid(),isDefault:false,createdAt:today()};
     clinics.push(newC);
     // Initialize empty data for new clinic
-    const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','prescriptions'];
+    const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','prescriptions','receipts'];
     keys.forEach(k=>{localStorage.setItem('og3_clinic_'+newC.id+'_'+k,JSON.stringify([]));});
     localStorage.setItem('og3_clinic_'+newC.id+'_professionals',JSON.stringify(D.professionals||[]));
     localStorage.setItem('og3_clinic_'+newC.id+'_procs',JSON.stringify(D.procs||[]));
@@ -5910,7 +6104,7 @@ function delClinic(){
   const c=clinics.find(x=>x.id===EID);
   if(c?.isDefault){alert('Não é possível excluir a clínica padrão.');return;}
   // Remove clinic data
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
   keys.forEach(k=>{localStorage.removeItem('og3_clinic_'+EID+'_'+k);});
   clinics=clinics.filter(x=>x.id!==EID);
   saveClinics(clinics);
