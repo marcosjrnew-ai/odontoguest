@@ -672,6 +672,11 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
         <button class="btn btn-p btn-sm" onclick="saveCfg()">Salvar Configurações</button>
       </div></div>
   </div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-hd"><span class="nav-icon" data-ico="history"></span> Log de Exclusões</div>
+    <div style="font-size:12.5px;color:var(--t3);margin-bottom:12px">Registro de tudo que foi excluído no sistema, por quem e quando. Exclusão é restrita ao Administrador.</div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Data/Hora</th><th>Tipo</th><th>Excluído por</th><th>Registro</th></tr></thead><tbody id="admin-dellog"></tbody></table></div>
+  </div>
 </div>
 
 <!-- BACKUP -->
@@ -1376,6 +1381,10 @@ const ROLES_CSS={dev:'role-dev',admin:'role-admin',coadmin:'role-coadmin',editor
 // Permission helpers
 const canEdit=()=>CU&&['dev','admin','coadmin','editor'].includes(CU.profile);
 const canAdmin=()=>CU&&['dev','admin','coadmin','editor'].includes(CU.profile);
+// Exclusão de registros é restrita ao Administrador (mais estrito que canAdmin(), que também
+// inclui Gestora/Gerente) — decisão explícita do usuário, com registro de auditoria (ver
+// logDeletion() e D._auditDeleted) pra todo apagamento no sistema.
+const canDelete=()=>CU&&['dev','admin'].includes(CU.profile);
 const isDev=()=>CU&&CU.profile==='dev';
 
 // Patient balance (total owed - total paid across visits)
@@ -1760,7 +1769,7 @@ function openApt(id){
   calcAptTotal();
   const rdonly=!canEdit();
   ['apt-pat-search','apt-pro','apt-proc','apt-date','apt-time','apt-status','apt-pay','apt-payst','apt-disc','apt-notes'].forEach(i=>{const el=document.getElementById(i);if(el)el.disabled=rdonly;});
-  document.getElementById('apt-del').style.display=(id&&canEdit())?'inline-flex':'none';
+  document.getElementById('apt-del').style.display=(id&&canDelete())?'inline-flex':'none';
   om('apt');
 }
 function saveApt(){
@@ -1774,7 +1783,7 @@ function saveApt(){
   EID?D.appointments=D.appointments.map(a=>a.id===EID?{...obj,id:EID}:a):D.appointments.push({...obj,id:uid()});
   save('appointments');cm('apt');renderAgenda();if(activePage==='dashboard')renderDashboard();
 }
-function delApt(){if(!canEdit()||!confirm('Excluir?'))return;D.appointments=D.appointments.filter(a=>a.id!==EID);save('appointments');cm('apt');renderAgenda();}
+function delApt(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.appointments.find(a=>a.id===EID);if(obj)logDeletion('appointment',obj);D.appointments=D.appointments.filter(a=>a.id!==EID);save('appointments');cm('apt');renderAgenda();}
 function shareAptWhatsApp(){
   const patId=+document.getElementById('apt-pat').value,p=getPat(patId);
   const proc=getProc(+document.getElementById('apt-proc').value);
@@ -1840,7 +1849,7 @@ function openPat(id){
   sv('pt-blood',p.bloodType);sv('pt-allerg',p.allergies);sv('pt-meds',p.meds);sv('pt-comorb',p.comorb);sv('pt-notes',p.notes);
   const rdonly=!canEdit();
   document.querySelectorAll('#m-pat .inp').forEach(el=>el.disabled=rdonly);
-  document.getElementById('pt-del').style.display=(id&&canAdmin())?'inline-flex':'none';
+  document.getElementById('pt-del').style.display=(id&&canDelete())?'inline-flex':'none';
   om('pat');
 }
 function savePat(){
@@ -1867,7 +1876,8 @@ function savePat(){
   save('patients');cm('pat');renderPatients();
 }
 function delPat(){
-  if(!canAdmin()||!confirm('Excluir paciente? Todos os prontuários e visitas serão mantidos.'))return;
+  if(!canDelete()||!confirm('Excluir paciente? Todos os prontuários e visitas serão mantidos.'))return;
+  const obj=D.patients.find(p=>p.id===EID);if(obj)logDeletion('patient',obj);
   D.patients=D.patients.filter(p=>p.id!==EID);save('patients');cm('pat');renderPatients();
 }
 
@@ -2006,7 +2016,7 @@ function editVisit(id){
   (v.materials||[]).forEach(m=>addMatRow('v-mats',m.stockId,m.qty));
   (v.otherMaterials||[]).forEach(m=>addOtherMatRowFill(m));
   calcVisitVal();
-  document.getElementById('v-del').style.display='inline-flex';
+  document.getElementById('v-del').style.display=canDelete()?'inline-flex':'none';
   document.getElementById('m-visit-t').textContent='Editar Atendimento';
   tempVisitPhotos=JSON.parse(JSON.stringify(v.photos||[]));renderVisitPhotosPreview();
   tempVisitAttachments=JSON.parse(JSON.stringify(v.attachments||[]));renderAttachmentsPreview();checkStorageWarning();
@@ -2072,13 +2082,13 @@ function saveVisit(){
   save('visits');cm('visit');renderRecords(patId);
 }
 function delVisit(){
-  if(!canAdmin()||!confirm('Excluir este atendimento?'))return;
+  if(!canDelete()||!confirm('Excluir este atendimento?'))return;
   const oldVisit=D.visits.find(v=>v.id===EVS);
   if(oldVisit){
     const histEntry=buildAuditEntry('excluir',oldVisit,null);
     // Guardar registro de exclusão no histórico global de audit
     if(!D._auditDeleted) D._auditDeleted=[];
-    D._auditDeleted.push({...histEntry,visitId:EVS,patientId:oldVisit.patientId,visitSnapshot:JSON.parse(JSON.stringify(oldVisit))});
+    D._auditDeleted.push({...histEntry,type:'visit',visitId:EVS,patientId:oldVisit.patientId,visitSnapshot:JSON.parse(JSON.stringify(oldVisit)),snapshot:JSON.parse(JSON.stringify(oldVisit))});
     LS.set('_auditDeleted',D._auditDeleted);
   }
   D.visits=D.visits.filter(v=>v.id!==EVS);save('visits');cm('visit');renderRecords();
@@ -2138,6 +2148,44 @@ function buildAuditEntry(action,oldObj,newObj){
     });
   }
   return entry;
+}
+
+// ─── LOG DE EXCLUSÕES (genérico, todas as telas) ────────────
+// Complementa o audit trail de visitas acima (que é field-a-field, específico de
+// prontuário) — aqui é só "isso existiu, foi apagado, por quem e quando", com uma
+// cópia completa do registro (snapshot), pra qualquer entidade do sistema.
+const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
+function logDeletion(type,obj){
+  if(!D._auditDeleted)D._auditDeleted=[];
+  D._auditDeleted.push({timestamp:new Date().toISOString(),userId:CU?.id||0,userName:CU?.dispName||'Sistema',action:'excluir',type,snapshot:JSON.parse(JSON.stringify(obj))});
+  LS.set('_auditDeleted',D._auditDeleted);
+}
+function auditDeletionSummary(entry){
+  const s=entry.snapshot||{};
+  switch(entry.type){
+    case 'patient': return s.name||'(sem nome)';
+    case 'appointment': return `${s.date||''} ${s.time||''} — ${getPat(s.patientId).name||'?'}`;
+    case 'visit': return `${s.date||''} — ${getPat(s.patientId).name||'?'} (${s.procedure||''})`;
+    case 'budget': return `Paciente: ${getPat(s.patientId).name||'?'}`;
+    case 'return': return `${s.date||''} — ${getPat(s.patientId).name||'?'}`;
+    case 'otherPayment': return `${s.desc||''} — ${fmt(s.val||0)}`;
+    case 'stock': return s.name||'(sem nome)';
+    case 'supplier': return s.name||'(sem nome)';
+    case 'professional': return s.dispName||s.fullName||'(sem nome)';
+    case 'procedure': return s.name||'(sem nome)';
+    default: return '';
+  }
+}
+function renderDeletionLog(){
+  const el=document.getElementById('admin-dellog');
+  if(!el)return;
+  const list=[...(D._auditDeleted||[])].filter(e=>e.type).sort((a,b)=>(b.timestamp||'').localeCompare(a.timestamp||''));
+  el.innerHTML=list.length?list.map(e=>`<tr>
+    <td style="font-size:12px;color:var(--t3)">${new Date(e.timestamp).toLocaleString('pt-BR')}</td>
+    <td><span class="badge" style="background:#f3f4f6;color:#334155">${AUDIT_TYPE_LABELS[e.type]||e.type}</span></td>
+    <td style="font-size:12.5px">${e.userName||''}</td>
+    <td style="font-size:12.5px">${auditDeletionSummary(e)}</td>
+  </tr>`).join(''):'<tr><td colspan="4" style="text-align:center;color:var(--t3);padding:16px">Nenhuma exclusão registrada.</td></tr>';
 }
 function openAuditLog(visitId){
   AUDIT_VISIT_ID=visitId;
@@ -2402,7 +2450,7 @@ function openBud(id){
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('bud-pat',b.patientId);sv('bud-pro',b.professionalId||CU?.id);sv('bud-date',b.date||today());sv('bud-valid',b.validUntil);sv('bud-notes',b.notes);sv('bud-paid',b.paid||0);sv('bud-disc',b.disc||0);sv('bud-status',b.status||'active');
   document.getElementById('bud-items').innerHTML='';(b.items||[]).forEach(i=>addBudItem(i.procedureId,i.qty,i.professionalId||0));
-  calcBudTotal();document.getElementById('bud-del').style.display=(id&&canAdmin())?'inline-flex':'none';om('bud');
+  calcBudTotal();document.getElementById('bud-del').style.display=(id&&canDelete())?'inline-flex':'none';om('bud');
 }
 function saveBud(){
   if(!canEdit())return;const patId=+document.getElementById('bud-pat').value;if(!patId){alert('Selecione paciente.');return;}
@@ -2412,7 +2460,7 @@ function saveBud(){
   EID?D.budgets=D.budgets.map(b=>b.id===EID?{...obj,id:EID}:b):D.budgets.push({...obj,id:uid()});
   const _budPatId=patId; save('budgets');cm('bud');renderBudgets();
 }
-function delBud(){if(!canAdmin()||!confirm('Excluir?'))return;D.budgets=D.budgets.filter(b=>b.id!==EID);save('budgets');cm('bud');renderBudgets();}
+function delBud(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.budgets.find(b=>b.id===EID);if(obj)logDeletion('budget',obj);D.budgets=D.budgets.filter(b=>b.id!==EID);save('budgets');cm('bud');renderBudgets();}
 function renderBudgets(){
   fillBudSels();const filt=document.getElementById('bud-filter')?.value||'';
   const list=filt?D.budgets.filter(b=>b.patientId===+filt):D.budgets;
@@ -2483,7 +2531,7 @@ function openRet(id){
   document.getElementById('m-ret-t').textContent=id?'Editar Retorno':'Agendar Retorno';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
   sv('ret-pat',r.patientId);sv('ret-date',r.date);sv('ret-obs',r.obs);sv('ret-status',r.status||'pending');
-  document.getElementById('ret-del').style.display=(id&&canAdmin())?'inline-flex':'none';om('ret');
+  document.getElementById('ret-del').style.display=(id&&canDelete())?'inline-flex':'none';om('ret');
 }
 function saveRet(){
   if(!canEdit())return;const patId=+document.getElementById('ret-pat').value;if(!patId||!document.getElementById('ret-date').value){alert('Preencha paciente e data.');return;}
@@ -2491,7 +2539,7 @@ function saveRet(){
   EID?D.returns=D.returns.map(r=>r.id===EID?{...obj,id:EID}:r):D.returns.push({...obj,id:uid()});
   save('returns');cm('ret');renderReturns();
 }
-function delRet(){if(!canAdmin()||!confirm('Excluir?'))return;D.returns=D.returns.filter(r=>r.id!==EID);save('returns');cm('ret');renderReturns();}
+function delRet(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.returns.find(r=>r.id===EID);if(obj)logDeletion('return',obj);D.returns=D.returns.filter(r=>r.id!==EID);save('returns');cm('ret');renderReturns();}
 function shareRetWhatsApp(){const patId=+document.getElementById('ret-pat').value,p=getPat(patId),date=document.getElementById('ret-date').value,obs=document.getElementById('ret-obs').value,cfg=D.config||{};const msg=`Olá, ${patDisp(patId)}! 😊\nGostaríamos de lembrá-lo(a) do seu retorno:\n📅 ${new Date(date+'T00:00:00').toLocaleDateString('pt-BR')}\n🔁 ${obs}\n📍 ${cfg.name||'Consultório'}\n\nPor favor, confirme! Obrigado!`;const link=wa(p.phone,msg);if(link)window.open(link,'_blank');else alert('Telefone não cadastrado.');}
 function shareRetEmail(){const patId=+document.getElementById('ret-pat').value,p=getPat(patId),date=document.getElementById('ret-date').value,obs=document.getElementById('ret-obs').value,cfg=D.config||{};const subj=`Lembrete de Retorno — ${cfg.name||'Consultório'}`;const body=`Olá, ${patDisp(patId)}!\n\nLembrete do seu retorno:\nData: ${new Date(date+'T00:00:00').toLocaleDateString('pt-BR')}\nMotivo: ${obs}\nLocal: ${cfg.name||'Consultório'}\n\nAguardamos sua confirmação!\n${CU?.dispName||''}`;const link=emailLink(p.email,subj,body);if(link)window.open(link,'_blank');else alert('E-mail não cadastrado.');}
 function renderReturns(){
@@ -2601,7 +2649,7 @@ function openOtherPay(id){
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
   sv('op-type',op.type||'daily');sv('op-desc',op.desc);sv('op-pro',op.professionalId||'');sv('op-date',op.date||today());sv('op-val',op.val);sv('op-notes',op.notes);
   toggleRentRate();sv('op-rate',op.rateType||'free');
-  document.getElementById('op-del').style.display=(id&&canAdmin())?'inline-flex':'none';om('op');
+  document.getElementById('op-del').style.display=(id&&canDelete())?'inline-flex':'none';om('op');
 }
 function saveOtherPay(){
   if(!canEdit())return;const type=document.getElementById('op-type').value;
@@ -2609,7 +2657,7 @@ function saveOtherPay(){
   EID?D.otherPayments=D.otherPayments.map(o=>o.id===EID?{...obj,id:EID}:o):D.otherPayments.push({...obj,id:uid()});
   save('otherPayments');cm('op');renderOtherPay();
 }
-function delOtherPay(){if(!canAdmin()||!confirm('Excluir?'))return;D.otherPayments=D.otherPayments.filter(o=>o.id!==EID);save('otherPayments');cm('op');renderOtherPay();}
+function delOtherPay(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.otherPayments.find(o=>o.id===EID);if(obj)logDeletion('otherPayment',obj);D.otherPayments=D.otherPayments.filter(o=>o.id!==EID);save('otherPayments');cm('op');renderOtherPay();}
 
 // ─── STOCK ─────────────────────────────────────────────────
 function renderStock(){
@@ -2633,14 +2681,14 @@ function openSk(id){
   document.getElementById('m-sk-t').textContent=id?'Editar Item':'Novo Item';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('sk-name',s.name);sv('sk-unit',s.unit);sv('sk-sup',s.supplierId||'');sv('sk-cost',s.cost);sv('sk-qty',s.qty);sv('sk-minqty',s.minQty);sv('sk-exp',s.exp);
-  document.getElementById('sk-del').style.display=(id&&canAdmin())?'inline-flex':'none';om('sk');
+  document.getElementById('sk-del').style.display=(id&&canDelete())?'inline-flex':'none';om('sk');
 }
 function saveSk(){if(!canEdit())return;const name=document.getElementById('sk-name').value.trim();if(!name)return;
   const gv=id=>document.getElementById(id)?.value||'';
   const obj={name,unit:gv('sk-unit'),supplierId:+gv('sk-sup')||0,cost:+gv('sk-cost'),qty:+gv('sk-qty'),minQty:+gv('sk-minqty'),exp:gv('sk-exp')};
   EID?D.stock=D.stock.map(s=>s.id===EID?{...obj,id:EID}:s):D.stock.push({...obj,id:uid()});
   save('stock');cm('sk');renderStock();}
-function delSk(){if(!canAdmin()||!confirm('Excluir?'))return;D.stock=D.stock.filter(s=>s.id!==EID);save('stock');cm('sk');renderStock();}
+function delSk(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.stock.find(s=>s.id===EID);if(obj)logDeletion('stock',obj);D.stock=D.stock.filter(s=>s.id!==EID);save('stock');cm('sk');renderStock();}
 
 // ─── SHOPPING ──────────────────────────────────────────────
 function renderShopping(){
@@ -2665,7 +2713,7 @@ function openSup(id){if(!canEdit()&&!id)return;editSupId=id||null;tempOrders=[];
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
   sv('sup-name',s.name);sv('sup-doc',s.doc);sv('sup-seg',s.seg);sv('sup-phone',s.phone);sv('sup-email',s.email);sv('sup-rep',s.rep);sv('sup-site',s.site);sv('sup-addr',s.addr);sv('sup-notes',s.notes);
   document.getElementById('sup-ord-date').value=today();document.getElementById('sup-ord-val').value='';document.getElementById('sup-ord-items').value='';
-  document.getElementById('sup-del').style.display=(id&&canAdmin())?'inline-flex':'none';renderOrdersList();om('sup');}
+  document.getElementById('sup-del').style.display=(id&&canDelete())?'inline-flex':'none';renderOrdersList();om('sup');}
 function renderOrdersList(){document.getElementById('sup-orders-wrap').innerHTML=!tempOrders.length?'':
   `<div class="form-sec">Histórico (${tempOrders.length})</div><table class="tbl"><thead><tr><th>Data</th><th>Itens</th><th>Valor</th></tr></thead><tbody>
   ${tempOrders.map(o=>`<tr><td style="font-size:11.5px">${new Date(o.date+'T00:00:00').toLocaleDateString('pt-BR')}</td><td style="font-size:12px">${o.items}</td><td style="font-weight:700;color:var(--P)">${fmt(o.val)}</td></tr>`).join('')}</tbody></table>`;}
@@ -2684,7 +2732,7 @@ function saveSup(){if(!canEdit())return;const name=document.getElementById('sup-
   const obj={name,doc:gv('sup-doc'),seg:gv('sup-seg'),phone:gv('sup-phone').replace(/\D/g,''),email:gv('sup-email'),rep:gv('sup-rep'),site:gv('sup-site'),addr:gv('sup-addr'),notes:gv('sup-notes'),orders:tempOrders};
   editSupId?D.suppliers=D.suppliers.map(s=>s.id===editSupId?{...obj,id:editSupId}:s):D.suppliers.push({...obj,id:uid()});
   save('suppliers');cm('sup');renderSuppliers();}
-function delSup(){if(!canAdmin()||!confirm('Excluir?'))return;D.suppliers=D.suppliers.filter(s=>s.id!==editSupId);save('suppliers');cm('sup');renderSuppliers();}
+function delSup(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.suppliers.find(s=>s.id===editSupId);if(obj)logDeletion('supplier',obj);D.suppliers=D.suppliers.filter(s=>s.id!==editSupId);save('suppliers');cm('sup');renderSuppliers();}
 function renderSuppliers(){
   const q=(document.getElementById('sup-search')?.value||'').toLowerCase().trim();
   const qd=q.replace(/\D/g,'');
@@ -2717,7 +2765,7 @@ function openPro(id){if(!canAdmin()&&!id)return;EID=id||null;
   document.getElementById('m-pro-t').textContent=id?'Editar Profissional':'Novo Profissional';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('pr-fullname',p.fullName);sv('pr-dispname',p.dispName);sv('pr-role',p.role||D.roles[0]);sv('pr-phone',p.phone);sv('pr-email',p.email);sv('pr-comm',p.commission||0);sv('pr-daily',p.daily||0);sv('pr-profile',p.profile||'editor');document.getElementById('pr-color').value=p.color||'#0ea5e9';
-  document.getElementById('pr-del').style.display=(id&&canAdmin())?'inline-flex':'none';om('pro');}
+  document.getElementById('pr-del').style.display=(id&&canDelete())?'inline-flex':'none';om('pro');}
 function savePro(){if(!canAdmin())return;const dn=document.getElementById('pr-dispname').value.trim();if(!dn)return;
   const gv=id=>document.getElementById(id)?.value||'';
   const fullName=gv('pr-fullname').trim();
@@ -2735,7 +2783,7 @@ function savePro(){if(!canAdmin())return;const dn=document.getElementById('pr-di
   const obj={fullName,dispName:dn,role:gv('pr-role'),phone:gv('pr-phone').replace(/\D/g,''),email,commission:+gv('pr-comm'),daily:+gv('pr-daily'),color:gv('pr-color'),profile:gv('pr-profile')};
   EID?D.professionals=D.professionals.map(p=>p.id===EID?{...obj,id:EID}:p):D.professionals.push({...obj,id:uid()});
   save('professionals');cm('pro');renderProfessionals();}
-function delPro(){if(!canAdmin()||D.professionals.length<=1||!confirm('Excluir?'))return;D.professionals=D.professionals.filter(p=>p.id!==EID);save('professionals');cm('pro');renderProfessionals();}
+function delPro(){if(!canDelete()||D.professionals.length<=1||!confirm('Excluir?'))return;const obj=D.professionals.find(p=>p.id===EID);if(obj)logDeletion('professional',obj);D.professionals=D.professionals.filter(p=>p.id!==EID);save('professionals');cm('pro');renderProfessionals();}
 function renderProfessionals(){
   const q=(document.getElementById('pro-search')?.value||'').toLowerCase().trim();
   const qd=q.replace(/\D/g,'');
@@ -2764,6 +2812,7 @@ function renderProfessionals(){
 
 // ─── ADMIN ─────────────────────────────────────────────────
 function renderAdmin(){
+  renderDeletionLog();
   document.getElementById('admin-users').innerHTML=D.professionals.map(p=>`
     <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f1f5f9">
       <div style="width:34px;height:34px;border-radius:50%;background:${p.color}22;display:flex;align-items:center;justify-content:center;font-weight:800;color:${p.color}">${p.dispName.charAt(0)}</div>
@@ -2794,12 +2843,12 @@ function openProcModal(id){if(!canAdmin())return;EID=id||null;
   document.getElementById('m-proc-t').textContent=id?'Editar Procedimento':'Novo Procedimento';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('proc-name',p.name);sv('proc-price',p.price);sv('proc-cost',p.cost);sv('proc-profcost',p.profcost||0);sv('proc-dur',p.dur||60);
-  document.getElementById('proc-del').style.display=id?'inline-flex':'none';om('proc');}
+  document.getElementById('proc-del').style.display=(id&&canDelete())?'inline-flex':'none';om('proc');}
 function saveProc(){if(!canAdmin())return;const name=document.getElementById('proc-name').value.trim();if(!name)return;
   const obj={name,price:+document.getElementById('proc-price').value||0,cost:+document.getElementById('proc-cost').value||0,profcost:+document.getElementById('proc-profcost').value||0,dur:+document.getElementById('proc-dur').value||60};
   EID?D.procs=D.procs.map(p=>p.id===EID?{...obj,id:EID}:p):D.procs.push({...obj,id:uid()});
   save('procs');cm('proc');renderAdmin();}
-function delProc(){if(!canAdmin()||!confirm('Excluir procedimento?'))return;D.procs=D.procs.filter(p=>p.id!==EID);save('procs');cm('proc');renderAdmin();}
+function delProc(){if(!canDelete()||!confirm('Excluir procedimento?'))return;const obj=D.procs.find(p=>p.id===EID);if(obj)logDeletion('procedure',obj);D.procs=D.procs.filter(p=>p.id!==EID);save('procs');cm('proc');renderAdmin();}
 
 // ─── IMPORT/EXPORT CSV/EXCEL + BACKUP JSON ──────────────────
 
@@ -3243,7 +3292,7 @@ function autoBackup(){const now=Date.now(),last=+localStorage.getItem('og3_last_
 // ─── CLEAR DEMO DATA ───────────────────────────────────────
 const DEMO_IDS={patients:[1,2],appointments:[1,2],visits:[1],budgets:[1],returns:[1],stock:[1,2,3,4,5]};
 function clearDemoData() {
-  if (!canAdmin()) { alert('Sem permissão.'); return; }
+  if (!canDelete()) { alert('Sem permissão.'); return; }
   if (!confirm('⚠️ Apagar os dados de demonstração (os que já vêm de fábrica no app)?\n\nSeus pacientes, agendamentos e outros registros reais NÃO são afetados — só o que é exemplo.\n\nConfirma?')) return;
   Object.keys(DEMO_IDS).forEach(k => {
     D[k] = (D[k]||[]).filter(rec => !DEMO_IDS[k].includes(rec.id));
@@ -5118,7 +5167,7 @@ function saveClinic(){
 }
 
 function delClinic(){
-  if(!EID||!confirm('Excluir esta clínica? Todos os dados serão perdidos!'))return;
+  if(!canDelete()||!EID||!confirm('Excluir esta clínica? Todos os dados serão perdidos!'))return;
   let clinics=getClinics();
   const c=clinics.find(x=>x.id===EID);
   if(c?.isDefault){alert('Não é possível excluir a clínica padrão.');return;}
