@@ -723,8 +723,33 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
         <div><label>Nome do Consultório</label><input class="inp" id="cfg-name" placeholder="Ex: Clínica Lana Andrade"/></div>
         <div><label>Telefone/WhatsApp</label><input class="inp" id="cfg-phone"/></div>
         <div><label>Endereço</label><input class="inp" id="cfg-addr"/></div>
+        <div><label>CRO (profissional responsável)</label><input class="inp" id="cfg-cro" placeholder="Ex: CRO/RJ: 34449"/></div>
+        <div class="g2" style="gap:9px">
+          <div><label>Logo do Consultório</label>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:52px;height:52px;border-radius:10px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+                <img id="cfg-logo-preview" src="" style="width:100%;height:100%;object-fit:contain;display:none"/>
+                <span id="cfg-logo-placeholder" style="font-size:9.5px;color:var(--t3);text-align:center">sem logo</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <input type="file" id="cfg-logo-inp" accept="image/*" style="display:none" onchange="handleCfgLogo(event)"/>
+                <button class="btn btn-o btn-sm" onclick="document.getElementById('cfg-logo-inp').click()">Escolher</button>
+                <button class="btn btn-o btn-sm" id="cfg-logo-remove" style="display:none" onclick="removeCfgLogo()">Remover</button>
+              </div>
+            </div>
+          </div>
+          <div><label>Cor de Destaque</label><input type="color" class="inp" id="cfg-color" style="height:42px;padding:4px"/></div>
+        </div>
         <button class="btn btn-p btn-sm" onclick="saveCfg()">Salvar Configurações</button>
       </div></div>
+    <div class="card">
+      <div class="card-hd"><span class="nav-icon" data-ico="alert"></span> Privacidade e Retenção de Dados</div>
+      <div style="font-size:12.5px;color:var(--t3);line-height:1.5">
+        O prontuário de cada paciente fica guardado por, no mínimo, <b>10 anos</b> — exigência do
+        Conselho Federal de Odontologia — protegido e disponível de qualquer aparelho, a qualquer
+        momento. Detalhes completos na <a href="https://odontoguest.pages.dev/privacy.html" target="_blank" rel="noopener">Política de Privacidade</a>.
+      </div>
+    </div>
   </div>
   <div class="card" style="margin-top:16px">
     <div class="card-hd"><span class="nav-icon" data-ico="history"></span> Log de Exclusões</div>
@@ -1478,7 +1503,7 @@ otherPayments:[],
 equipment:[],
 suppliers:[],
 roles:["Dentista","Endodontista","Ortodontista","Implantodontista","Periodontista","Técnico","Auxiliar","Secretária","Recepcionista"],
-config:{name:"Consultório OdontoGuest",phone:"",addr:""},
+config:{name:"Consultório OdontoGuest",phone:"",addr:"",cro:"",logo:"",accentColor:"#0c6e9e"},
 procs:DEF_PROCS,
 };
 
@@ -3247,11 +3272,41 @@ function renderAdmin(){
     </div>`).join('');
   const cfg=D.config||{};
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
-  sv('cfg-name',cfg.name);sv('cfg-phone',cfg.phone);sv('cfg-addr',cfg.addr);
+  sv('cfg-name',cfg.name);sv('cfg-phone',cfg.phone);sv('cfg-addr',cfg.addr);sv('cfg-cro',cfg.cro);sv('cfg-color',cfg.accentColor||'#0c6e9e');
+  renderCfgLogoPreview();
 }
 function addRole(){const v=document.getElementById('new-role-inp').value.trim();if(!v||D.roles.includes(v))return;D.roles.push(v);save('roles');document.getElementById('new-role-inp').value='';renderAdmin();}
 function removeRole(i){if(!confirm('Remover cargo?'))return;D.roles.splice(i,1);save('roles');renderAdmin();}
-function saveCfg(){D.config={name:document.getElementById('cfg-name').value,phone:document.getElementById('cfg-phone').value,addr:document.getElementById('cfg-addr').value};save('config');alert('Configurações salvas!');}
+function saveCfg(){
+  D.config={name:document.getElementById('cfg-name').value,phone:document.getElementById('cfg-phone').value,addr:document.getElementById('cfg-addr').value,cro:document.getElementById('cfg-cro').value,accentColor:document.getElementById('cfg-color').value,logo:D.config?.logo||''};
+  save('config');alert('Configurações salvas!');
+}
+function renderCfgLogoPreview(){
+  const img=document.getElementById('cfg-logo-preview'),ph=document.getElementById('cfg-logo-placeholder'),rm=document.getElementById('cfg-logo-remove');
+  if(!img)return;
+  const logo=D.config?.logo;
+  if(logo){img.src=logo;img.style.display='block';if(ph)ph.style.display='none';if(rm)rm.style.display='inline-flex';}
+  else{img.style.display='none';if(ph)ph.style.display='block';if(rm)rm.style.display='none';}
+}
+const LOGO_MAX_RAW_SIZE=200*1024;
+function handleCfgLogo(evt){
+  if(!canAdmin())return;
+  const file=evt.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    compressImage(e.target.result,LOGO_MAX_RAW_SIZE,dataUrl=>{
+      D.config={...D.config,logo:dataUrl};
+      save('config');renderCfgLogoPreview();
+    });
+  };
+  reader.readAsDataURL(file);
+}
+function removeCfgLogo(){
+  if(!canAdmin())return;
+  D.config={...D.config,logo:''};
+  save('config');renderCfgLogoPreview();
+  document.getElementById('cfg-logo-inp').value='';
+}
 
 // ─── PROCEDURES ADMIN ──────────────────────────────────────
 function openProcModal(id){if(!canAdmin())return;EID=id||null;
