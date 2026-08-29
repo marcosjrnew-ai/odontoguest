@@ -484,7 +484,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <button class="nav-btn" onclick="go('finance')"><span class="nav-icon" data-ico="finance"></span><span class="nav-label">Financeiro</span></button>
   <button class="nav-btn" onclick="go('otherpay')"><span class="nav-icon" data-ico="otherpay"></span><span class="nav-label">Outros Pgtos</span></button>
   <button class="nav-btn" onclick="go('stock')"><span class="nav-icon" data-ico="stock"></span><span class="nav-label">Estoque</span></button>
-  <button class="nav-btn" onclick="go('equipment')"><span class="nav-icon" data-ico="equipment"></span><span class="nav-label">Equipamentos</span></button>
+  <button class="nav-btn" onclick="go('equipment')"><span class="nav-icon" data-ico="equipment"></span><span class="nav-label">Instrumental</span></button>
   <button class="nav-btn" onclick="go('shopping')"><span class="nav-icon" data-ico="shopping"></span><span class="nav-label">Lista Compras</span></button>
   <button class="nav-btn" onclick="go('suppliers')"><span class="nav-icon" data-ico="suppliers"></span><span class="nav-label">Fornecedores</span></button>
   <div class="s-sec nav-label">Config</div>
@@ -669,8 +669,8 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
         <button class="tab-btn" id="rp-year" onclick="setRepPeriodView('year')">Anual</button>
       </div>
     </div>
-    <div style="font-size:11.5px;color:var(--t3);margin-bottom:10px">Receita = valores recebidos de pacientes. Custos: aluguel e materiais comprados pelo profissional (Outros Pagamentos). Usa o filtro de profissional acima.</div>
-    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Período</th><th>Receita</th><th>Aluguel</th><th>Materiais</th><th>Lucro/Prejuízo</th></tr></thead><tbody id="rep-pl-body"></tbody></table></div>
+    <div style="font-size:11.5px;color:var(--t3);margin-bottom:10px">Receita = valores recebidos de pacientes. Custos: aluguel e insumos comprados pelo profissional (Outros Pagamentos). Usa o filtro de profissional acima.</div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Período</th><th>Receita</th><th>Aluguel</th><th>Insumos</th><th>Lucro/Prejuízo</th></tr></thead><tbody id="rep-pl-body"></tbody></table></div>
   </div>
   <div class="card" style="margin-top:14px">
     <div class="row-flex" style="margin-bottom:4px"><div class="card-hd" style="margin-bottom:0"><span class="nav-icon" data-ico="reports"></span> Livro-Caixa (Carnê-Leão)</div>
@@ -679,8 +679,8 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
         <button class="btn btn-g btn-sm" onclick="exportLivroCaixa()">📥 Exportar CSV</button>
       </div>
     </div>
-    <div style="font-size:11.5px;color:var(--t3);margin-bottom:10px">Receita bruta e despesas dedutíveis (aluguel e materiais) por mês, ano civil completo — pronto para a declaração mensal do Carnê-Leão. Usa o filtro de profissional acima.</div>
-    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Mês</th><th>Receita Bruta</th><th>Aluguel</th><th>Materiais</th><th>Despesas Dedutíveis</th><th>Base de Cálculo</th></tr></thead><tbody id="lc-body"></tbody></table></div>
+    <div style="font-size:11.5px;color:var(--t3);margin-bottom:10px">Receita bruta e despesas dedutíveis (aluguel e insumos) por mês, ano civil completo — pronto para a declaração mensal do Carnê-Leão. Usa o filtro de profissional acima.</div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Mês</th><th>Receita Bruta</th><th>Aluguel</th><th>Insumos</th><th>Despesas Dedutíveis</th><th>Base de Cálculo</th></tr></thead><tbody id="lc-body"></tbody></table></div>
   </div>
 </div>
 
@@ -698,17 +698,40 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 <!-- STOCK -->
 <div id="page-stock" class="page">
   <div class="row-flex"><div><div class="s-title">Estoque</div><div class="s-sub" id="sk-total"></div></div>
-  <div class="actions no-print"><button class="btn btn-p" onclick="openSk()" id="btn-new-sk">+ Novo Item</button>
-  <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button></div></div>
-  <div id="sk-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:12px"></div>
+  <div class="actions no-print">
+    <input class="inp" id="sk-search" placeholder="Buscar insumo ou categoria..." style="width:220px" oninput="renderStock()"/>
+    <button class="btn btn-p" onclick="openSk()" id="btn-new-sk">+ Novo Item</button>
+    <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button>
+  </div></div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="tbl"><thead><tr>
+      <th style="cursor:pointer" onclick="sortSk('name')">Insumo <span id="sk-sort-name"></span></th>
+      <th style="cursor:pointer" onclick="sortSk('category')">Categoria <span id="sk-sort-category"></span></th>
+      <th style="cursor:pointer" onclick="sortSk('qty')">Quantidade <span id="sk-sort-qty"></span></th>
+      <th style="cursor:pointer" onclick="sortSk('exp')">Validade <span id="sk-sort-exp"></span></th>
+      <th>Fornecedor</th><th>Custo Total</th><th></th>
+    </tr></thead><tbody id="sk-body"></tbody></table>
+  </div>
 </div>
 
 <!-- EQUIPMENT -->
 <div id="page-equipment" class="page">
-  <div class="row-flex"><div><div class="s-title">Equipamentos</div><div class="s-sub" id="eq-total">Instrumental e equipamentos próprios dos profissionais</div></div>
-  <div class="actions no-print"><button class="btn btn-p" onclick="openEq()" id="btn-new-eq">+ Novo Equipamento</button>
-  <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button></div></div>
-  <div id="eq-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:12px"></div>
+  <div class="row-flex"><div><div class="s-title">Instrumental</div><div class="s-sub" id="eq-total">Instrumental próprio dos profissionais</div></div>
+  <div class="actions no-print">
+    <input class="inp" id="eq-search" placeholder="Buscar por nome, categoria ou código..." style="width:220px" oninput="renderEquipment()"/>
+    <button class="btn btn-p" onclick="openEq()" id="btn-new-eq">+ Novo Instrumental</button>
+    <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button>
+  </div></div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="tbl"><thead><tr>
+      <th style="cursor:pointer" onclick="sortEq('name')">Nome <span id="eq-sort-name"></span></th>
+      <th style="cursor:pointer" onclick="sortEq('category')">Categoria <span id="eq-sort-category"></span></th>
+      <th style="cursor:pointer" onclick="sortEq('qty')">Quantidade <span id="eq-sort-qty"></span></th>
+      <th>Estado</th>
+      <th style="cursor:pointer" onclick="sortEq('acquisitionDate')">Aquisição <span id="eq-sort-acquisitionDate"></span></th>
+      <th>Dono</th><th>Valor Total</th><th></th>
+    </tr></thead><tbody id="eq-body"></tbody></table>
+  </div>
 </div>
 
 <!-- SHOPPING -->
@@ -1170,11 +1193,11 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <div><label>Valor Pago Hoje</label><input type="number" class="inp" id="v-paid" min="0" step="0.01" value="0"/></div>
     <div><label>Forma de Pgto</label><select class="inp" id="v-pay"><option value="pix">PIX</option><option value="cash">Dinheiro</option><option value="debit">Débito</option><option value="credit">Crédito</option><option value="plan">Convênio</option></select></div>
   </div>
-  <div class="form-sec">Materiais Utilizados</div>
+  <div class="form-sec">Insumos Utilizados</div>
   <div id="v-mats"></div>
   <div style="display:flex;gap:8px;margin-top:8px">
-    <button class="btn btn-o btn-sm" onclick="addMatRow('v-mats')">+ Material Cadastrado</button>
-    <button class="btn btn-o btn-sm" onclick="addOtherMatRow()">+ Outro Material</button>
+    <button class="btn btn-o btn-sm" onclick="addMatRow('v-mats')">+ Insumo Cadastrado</button>
+    <button class="btn btn-o btn-sm" onclick="addOtherMatRow()">+ Outro Insumo</button>
   </div>
   <div class="form-sec">Fotos do Tratamento</div>
   <div id="v-photos-wrap" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"></div>
@@ -1356,6 +1379,13 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
       </datalist>
     </div>
     <div class="g2" style="gap:9px">
+      <div><label>Categoria</label><input class="inp" id="sk-cat" list="sk-cat-list" placeholder="Selecione ou digite..."/>
+        <datalist id="sk-cat-list">
+          <option value="Anestésicos"/><option value="Restauradores (Resinas/Cimentos)"/><option value="EPI/Descartáveis"/>
+          <option value="Endodontia"/><option value="Ortodontia"/><option value="Protética"/>
+          <option value="Limpeza/Esterilização"/><option value="Moldagem/Gesso"/><option value="Outro"/>
+        </datalist>
+      </div>
       <div><label>Unidade</label><input class="inp" id="sk-unit" placeholder="cx, seringa..."/></div>
       <div><label>Fornecedor</label><select class="inp" id="sk-sup"><option value="">Nenhum</option></select></div>
       <div><label>Custo Unit. (R$)</label><input type="number" class="inp" id="sk-cost" min="0" step="0.01"/></div>
@@ -1372,7 +1402,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 </div></div>
 
 <div class="overlay" id="m-eq" style="display:none" onclick="if(event.target===this)cm('eq')"><div class="modal" onclick="event.stopPropagation()" style="max-width:460px">
-  <div class="modal-title" id="m-eq-t">Equipamento</div>
+  <div class="modal-title" id="m-eq-t">Instrumental</div>
   <div style="display:flex;flex-direction:column;gap:10px">
     <div class="g2" style="gap:9px">
       <div><label>Código</label><input class="inp" id="eq-code" placeholder="EQ-001"/></div>
@@ -1466,7 +1496,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div style="display:flex;flex-direction:column;gap:10px">
     <div><label>Tipo</label><select class="inp" id="op-type" onchange="toggleRentRate()">
       <option value="daily">Diária de Profissional</option><option value="expense">Despesa Operacional</option>
-      <option value="material">Material Extra</option><option value="rent">Aluguel/Infraestrutura</option><option value="other">Outro</option></select></div>
+      <option value="material">Insumos Extra</option><option value="rent">Aluguel/Infraestrutura</option><option value="other">Outro</option></select></div>
     <div id="op-rate-wrap" style="display:none"><label>Tarifa</label><select class="inp" id="op-rate" onchange="applyRentRate()"></select></div>
     <div><label>Descrição</label><input class="inp" id="op-desc"/></div>
     <div><label>Profissional (se aplicável)</label><select class="inp" id="op-pro"><option value="">Nenhum</option></select></div>
@@ -1490,7 +1520,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     </div>
     <div class="g2" style="gap:9px">
       <div><label>Valor Base (R$)</label><input type="number" class="inp" id="proc-price" min="0" step="0.01"/></div>
-      <div><label>Custo Material (R$)</label><input type="number" class="inp" id="proc-cost" min="0" step="0.01"/></div>
+      <div><label>Custo Insumo (R$)</label><input type="number" class="inp" id="proc-cost" min="0" step="0.01"/></div>
       <div><label>Custo Profissional (R$)</label><input type="number" class="inp" id="proc-profcost" min="0" step="0.01" placeholder="Ex: custo lab/protético"/></div>
       <div><label>Duração (min)</label><input type="number" class="inp" id="proc-dur" min="15" step="15" value="60"/></div>
     </div>
@@ -1584,11 +1614,11 @@ budgets:[
 ],
 returns:[{id:1,patientId:1,date:"2026-01-08",obs:"Revisão pós restauração",status:"pending"}],
 stock:[
-  {id:1,name:"Resina Composta A2",unit:"seringa",supplierId:0,cost:45,qty:8,minQty:3,exp:"2026-12-01"},
-  {id:2,name:"Anestésico Lidocaína",unit:"cx 50un",supplierId:0,cost:38,qty:2,minQty:2,exp:"2025-08-15"},
-  {id:3,name:"Luvas P",unit:"cx 100un",supplierId:0,cost:22,qty:5,minQty:2,exp:""},
-  {id:4,name:"Máscara",unit:"cx 50un",supplierId:0,cost:18,qty:3,minQty:2,exp:""},
-  {id:5,name:"Álcool 70%",unit:"litro",supplierId:0,cost:12,qty:1,minQty:2,exp:"2025-10-01"},
+  {id:1,name:"Resina Composta A2",category:"Restauradores (Resinas/Cimentos)",unit:"seringa",supplierId:0,cost:45,qty:8,minQty:3,exp:"2026-12-01"},
+  {id:2,name:"Anestésico Lidocaína",category:"Anestésicos",unit:"cx 50un",supplierId:0,cost:38,qty:2,minQty:2,exp:"2025-08-15"},
+  {id:3,name:"Luvas P",category:"EPI/Descartáveis",unit:"cx 100un",supplierId:0,cost:22,qty:5,minQty:2,exp:""},
+  {id:4,name:"Máscara",category:"EPI/Descartáveis",unit:"cx 50un",supplierId:0,cost:18,qty:3,minQty:2,exp:""},
+  {id:5,name:"Álcool 70%",category:"Limpeza/Esterilização",unit:"litro",supplierId:0,cost:12,qty:1,minQty:2,exp:"2025-10-01"},
 ],
 otherPayments:[],
 equipment:[],
@@ -2529,7 +2559,7 @@ function calcVisitVal(){
 }
 function addMatRow(containerId,stockId,qty){
   const div=document.createElement('div');div.style.cssText='display:flex;gap:8px;margin-bottom:7px;align-items:center';
-  div.innerHTML=`<select class="inp mat-sk" style="flex:1"><option value="">Material cadastrado...</option>${D.stock.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
+  div.innerHTML=`<select class="inp mat-sk" style="flex:1"><option value="">Insumo cadastrado...</option>${D.stock.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
     <input type="number" class="inp mat-qty" style="width:65px" min="1" value="${qty||1}"/>
     <button onclick="this.parentNode.remove()" style="background:none;border:none;color:var(--R);font-size:17px;cursor:pointer;flex-shrink:0">✕</button>`;
   if(stockId) div.querySelector('.mat-sk').value=stockId;
@@ -2538,7 +2568,7 @@ function addMatRow(containerId,stockId,qty){
 function addOtherMatRow(){
   const div=document.createElement('div');div.style.cssText='display:flex;gap:8px;margin-bottom:7px;align-items:center';
   div.className='other-mat-row';
-  div.innerHTML=`<input class="inp om-name" placeholder="Nome do material..." style="flex:2"/>
+  div.innerHTML=`<input class="inp om-name" placeholder="Nome do insumo..." style="flex:2"/>
     <input type="number" class="inp om-qty" placeholder="Qtd" style="width:60px" min="1" value="1"/>
     <input type="number" class="inp om-cost" placeholder="Custo R$" style="width:80px" min="0" step="0.01"/>
     <button onclick="this.parentNode.remove()" style="background:none;border:none;color:var(--R);font-size:17px;cursor:pointer;flex-shrink:0">✕</button>`;
@@ -2649,7 +2679,7 @@ function buildAuditEntry(action,oldObj,newObj){
 // Complementa o audit trail de visitas acima (que é field-a-field, específico de
 // prontuário) — aqui é só "isso existiu, foi apagado, por quem e quando", com uma
 // cópia completa do registro (snapshot), pra qualquer entidade do sistema.
-const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',prescription:'Receita',receipt:'Recibo',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Equipamento',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
+const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',prescription:'Receita',receipt:'Recibo',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Instrumental',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
 function logDeletion(type,obj){
   if(!D._auditDeleted)D._auditDeleted=[];
   D._auditDeleted.push({timestamp:new Date().toISOString(),userId:CU?.id||0,userName:CU?.dispName||'Sistema',action:'excluir',type,snapshot:JSON.parse(JSON.stringify(obj))});
@@ -3432,7 +3462,7 @@ function applyRentRate(){
 }
 function renderOtherPay(){
   const total=D.otherPayments.reduce((s,op)=>s+(op.val||0),0);
-  const byType={'daily':'Diária','expense':'Despesa','material':'Material','rent':'Aluguel','other':'Outro'};
+  const byType={'daily':'Diária','expense':'Despesa','material':'Insumos','rent':'Aluguel','other':'Outro'};
   document.getElementById('op-stats').innerHTML=[
     {l:"Total Lançado",v:total,c:"#e63946",i:"otherpay"},
     {l:"Diárias",v:D.otherPayments.filter(o=>o.type==='daily').reduce((s,o)=>s+(o.val||0),0),c:"#f59e0b",i:"patients"},
@@ -3467,20 +3497,34 @@ function saveOtherPay(){
 }
 function delOtherPay(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.otherPayments.find(o=>o.id===EID);if(obj)logDeletion('otherPayment',obj);D.otherPayments=D.otherPayments.filter(o=>o.id!==EID);save('otherPayments');cm('op');renderOtherPay();}
 
-// ─── STOCK ─────────────────────────────────────────────────
+// ─── STOCK (Insumos) ─────────────────────────────────────────
+let _skSort={key:'name',dir:1};
+function _sortArrow(state,key){return state.key===key?(state.dir===1?'▲':'▼'):'';}
+function sortSk(key){if(_skSort.key===key)_skSort.dir*=-1;else _skSort={key,dir:1};renderStock();}
 function renderStock(){
   const total=D.stock.reduce((s,i)=>s+i.qty*i.cost,0);document.getElementById('sk-total').textContent=`Valor total: ${fmt(total)}`;
-  document.getElementById('sk-grid').innerHTML=D.stock.map(s=>{
-    const pct=Math.min(100,(s.qty/Math.max(s.minQty*3,1))*100),low=s.qty<=s.minQty,du=s.exp?daysUntil(s.exp):null;
+  const q=(document.getElementById('sk-search')?.value||'').toLowerCase().trim();
+  let list=D.stock.filter(s=>!q||(s.name+' '+(s.category||'')).toLowerCase().includes(q));
+  const{key,dir}=_skSort;
+  list=[...list].sort((a,b)=>{
+    if(key==='name'||key==='category')return((a[key]||'')+'').localeCompare((b[key]||'')+'')*dir;
+    if(key==='exp')return((a.exp||'9999')+'').localeCompare((b.exp||'9999')+'')*dir;
+    return((+a[key]||0)-(+b[key]||0))*dir;
+  });
+  ['name','category','qty','exp'].forEach(k=>{const el=document.getElementById('sk-sort-'+k);if(el)el.textContent=_sortArrow(_skSort,k);});
+  document.getElementById('sk-body').innerHTML=list.map(s=>{
+    const low=s.qty<=s.minQty,du=s.exp?daysUntil(s.exp):null;
     const expB=du!==null&&du<=30?`<span class="badge" style="background:${du<=0?'#fee2e2':'#fef3c7'};color:${du<=0?'#dc2626':'#92400e'}">${du<0?'Vencido':du===0?'Hoje':du+'d'}</span>`:'';
-    return`<div class="card" style="cursor:pointer" onclick="openSk(${s.id})">
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><b>${s.name}</b><div style="display:flex;gap:4px">${expB}${low?'<span class="badge" style="background:#fee2e2;color:#dc2626">⚠️</span>':''}</div></div>
-      ${s.supplierId?`<div style="font-size:11px;color:var(--P);margin-bottom:5px">🏭 ${getSup(s.supplierId).name}</div>`:''}
-      <div class="sk-bar-bg"><div class="sk-bar" style="width:${pct}%;background:${low?'#ef4444':'#10b981'}"></div></div>
-      <div style="display:flex;justify-content:space-between;font-size:12.5px"><span style="color:var(--t3)">${s.qty} ${s.unit} (mín:${s.minQty})</span><span style="color:var(--P);font-weight:700">${fmt(s.qty*s.cost)}</span></div>
-      ${s.exp?`<div style="font-size:11px;color:var(--t3);margin-top:4px">Val: ${new Date(s.exp+'T00:00:00').toLocaleDateString('pt-BR')}</div>`:''}
-    </div>`;
-  }).join('');
+    return`<tr>
+      <td style="font-weight:700">${s.name}${low?' <span class="badge" style="background:#fee2e2;color:#dc2626">⚠️</span>':''}</td>
+      <td style="font-size:12.5px;color:var(--t3)">${s.category||'-'}</td>
+      <td style="color:${low?'var(--R)':'inherit'};font-weight:${low?700:400}">${s.qty} ${s.unit||''} <span style="color:var(--t3);font-size:11px">(mín:${s.minQty})</span></td>
+      <td style="font-size:12.5px">${s.exp?new Date(s.exp+'T00:00:00').toLocaleDateString('pt-BR'):'-'} ${expB}</td>
+      <td style="font-size:12.5px">${s.supplierId?getSup(s.supplierId).name:'-'}</td>
+      <td style="font-weight:700;color:var(--P)">${fmt(s.qty*s.cost)}</td>
+      <td><button class="btn btn-o btn-sm" onclick="openSk(${s.id})">Editar</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:20px">Nenhum insumo cadastrado.</td></tr>';
 }
 function openSk(id){
   if(!canEdit()&&!id)return;EID=id||null;
@@ -3488,37 +3532,46 @@ function openSk(id){
   const s=id?D.stock.find(x=>x.id===id):{};
   document.getElementById('m-sk-t').textContent=id?'Editar Item':'Novo Item';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
-  sv('sk-name',s.name);sv('sk-unit',s.unit);sv('sk-sup',s.supplierId||'');sv('sk-cost',s.cost);sv('sk-qty',s.qty);sv('sk-minqty',s.minQty);sv('sk-exp',s.exp);
+  sv('sk-name',s.name);sv('sk-cat',s.category);sv('sk-unit',s.unit);sv('sk-sup',s.supplierId||'');sv('sk-cost',s.cost);sv('sk-qty',s.qty);sv('sk-minqty',s.minQty);sv('sk-exp',s.exp);
   document.getElementById('sk-del').style.display=(id&&canDelete())?'inline-flex':'none';om('sk');
 }
 function saveSk(){if(!canEdit())return;const name=document.getElementById('sk-name').value.trim();if(!name)return;
   const gv=id=>document.getElementById(id)?.value||'';
-  const obj={name,unit:gv('sk-unit'),supplierId:+gv('sk-sup')||0,cost:+gv('sk-cost'),qty:+gv('sk-qty'),minQty:+gv('sk-minqty'),exp:gv('sk-exp')};
+  const obj={name,category:gv('sk-cat'),unit:gv('sk-unit'),supplierId:+gv('sk-sup')||0,cost:+gv('sk-cost'),qty:+gv('sk-qty'),minQty:+gv('sk-minqty'),exp:gv('sk-exp')};
   EID?D.stock=D.stock.map(s=>s.id===EID?{...obj,id:EID}:s):D.stock.push({...obj,id:uid()});
   save('stock');cm('sk');renderStock();}
 function delSk(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.stock.find(s=>s.id===EID);if(obj)logDeletion('stock',obj);D.stock=D.stock.filter(s=>s.id!==EID);save('stock');cm('sk');renderStock();}
 
-// ─── EQUIPAMENTOS (instrumental próprio dos profissionais) ──
+// ─── INSTRUMENTAL (equipamentos próprios dos profissionais) ─
 const EQ_COND_COLORS={'Novo':'#10b981','Bom':'#0ea5e9','Regular':'#f59e0b','Precisa manutenção':'#f97316','Quebrado':'#ef4444'};
+let _eqSort={key:'name',dir:1};
+function sortEq(key){if(_eqSort.key===key)_eqSort.dir*=-1;else _eqSort={key,dir:1};renderEquipment();}
 function renderEquipment(){
   const total=D.equipment.reduce((s,e)=>s+(e.qty||0)*(e.value||0),0);
-  document.getElementById('eq-total').textContent=D.equipment.length?`Valor total: ${fmt(total)}`:'Instrumental e equipamentos próprios dos profissionais';
-  document.getElementById('eq-grid').innerHTML=D.equipment.map(e=>{
+  document.getElementById('eq-total').textContent=D.equipment.length?`Valor total: ${fmt(total)}`:'Instrumental próprio dos profissionais';
+  const q=(document.getElementById('eq-search')?.value||'').toLowerCase().trim();
+  let list=D.equipment.filter(e=>!q||(e.name+' '+(e.category||'')+' '+(e.code||'')).toLowerCase().includes(q));
+  const{key,dir}=_eqSort;
+  list=[...list].sort((a,b)=>{
+    if(key==='name'||key==='category')return((a[key]||'')+'').localeCompare((b[key]||'')+'')*dir;
+    if(key==='acquisitionDate')return((a.acquisitionDate||'')+'').localeCompare((b.acquisitionDate||'')+'')*dir;
+    return((+a[key]||0)-(+b[key]||0))*dir;
+  });
+  ['name','category','qty','acquisitionDate'].forEach(k=>{const el=document.getElementById('eq-sort-'+k);if(el)el.textContent=_sortArrow(_eqSort,k);});
+  document.getElementById('eq-body').innerHTML=list.map(e=>{
     const pr=getPro(e.professionalId);
     const condColor=EQ_COND_COLORS[e.condition]||'#94a3b8';
-    return`<div class="card" style="cursor:pointer" onclick="openEq(${e.id})">
-      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
-        <div><b>${e.name}</b>${e.code?`<div style="font-size:10.5px;color:var(--t3)">${e.code}</div>`:''}</div>
-        <span class="badge" style="background:${condColor}22;color:${condColor}">${e.condition||'—'}</span>
-      </div>
-      ${e.category?`<div style="font-size:11.5px;color:var(--P);margin-bottom:5px">${e.category}</div>`:''}
-      <div style="display:flex;justify-content:space-between;font-size:12.5px">
-        <span style="color:var(--t3)">Qtd: ${e.qty||0}${e.professionalId?' · '+pr.dispName?.split(' ')[0]:''}</span>
-        ${e.value?`<span style="color:var(--P);font-weight:700">${fmt((e.qty||0)*e.value)}</span>`:''}
-      </div>
-      ${e.acquisitionDate?`<div style="font-size:11px;color:var(--t3);margin-top:4px">Adquirido: ${new Date(e.acquisitionDate+'T00:00:00').toLocaleDateString('pt-BR')}</div>`:''}
-    </div>`;
-  }).join('')||'<div class="card" style="color:var(--t3)">Nenhum equipamento cadastrado.</div>';
+    return`<tr>
+      <td style="font-weight:700">${e.name}${e.code?`<div style="font-size:10.5px;color:var(--t3);font-weight:400">${e.code}</div>`:''}</td>
+      <td style="font-size:12.5px;color:var(--P)">${e.category||'-'}</td>
+      <td>${e.qty||0}</td>
+      <td><span class="badge" style="background:${condColor}22;color:${condColor}">${e.condition||'—'}</span></td>
+      <td style="font-size:12.5px">${e.acquisitionDate?new Date(e.acquisitionDate+'T00:00:00').toLocaleDateString('pt-BR'):'-'}</td>
+      <td style="font-size:12.5px">${e.professionalId?pr.dispName:'-'}</td>
+      <td style="font-weight:700;color:var(--P)">${e.value?fmt((e.qty||0)*e.value):'-'}</td>
+      <td><button class="btn btn-o btn-sm" onclick="openEq(${e.id})">Editar</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--t3);padding:20px">Nenhum instrumental cadastrado.</td></tr>';
 }
 const EQ_CAT_PREFIX={'Pinça':'PIN','Broca':'BRO','Extrator':'EXT','Espelho Bucal':'ESP','Sonda Exploradora':'SON','Cureta':'CUR','Alicate':'ALI','Motor/Caneta de Alta Rotação':'MOT','Autoclave':'AUT','Outro':'EQP'};
 function _eqPrefixFor(category){
@@ -3541,7 +3594,7 @@ function openEq(id){
   if(!canEdit()&&!id)return;EID=id||null;
   document.getElementById('eq-pro').innerHTML='<option value="">Nenhum</option>'+D.professionals.map(p=>`<option value="${p.id}">${p.dispName}</option>`).join('');
   const e=id?D.equipment.find(x=>x.id===id):{};
-  document.getElementById('m-eq-t').textContent=id?'Editar Equipamento':'Novo Equipamento';
+  document.getElementById('m-eq-t').textContent=id?'Editar Instrumental':'Novo Instrumental';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('eq-code',id?e.code:_nextEqCode(''));sv('eq-cat',e.category);sv('eq-name',e.name);sv('eq-qty',id?e.qty:1);
   sv('eq-cond',e.condition||'Novo');sv('eq-value',e.value);sv('eq-acq',e.acquisitionDate);sv('eq-pro',e.professionalId||'');sv('eq-notes',e.notes);
@@ -3562,7 +3615,7 @@ function renderShopping(){
   const all=[...new Map([...low,...exp].map(s=>[s.id,s])).values()];
   document.getElementById('shop-list').innerHTML=!all.length?'<div class="card" style="text-align:center;padding:30px;color:#10b981;font-size:15px;font-weight:700">✅ Estoque em dia!</div>':
   `<div class="card"><div class="card-hd">${ogIco('shopping',18)} Itens para Comprar</div>
-  <table class="tbl"><thead><tr><th>Material</th><th>Atual</th><th>Mínimo</th><th>Validade</th><th>Fornecedor</th><th>Est. Custo</th></tr></thead><tbody>
+  <table class="tbl"><thead><tr><th>Insumo</th><th>Atual</th><th>Mínimo</th><th>Validade</th><th>Fornecedor</th><th>Est. Custo</th></tr></thead><tbody>
   ${all.map(s=>{const du=s.exp?daysUntil(s.exp):null,need=Math.max(0,s.minQty*3-s.qty),sup=getSup(s.supplierId);
     return`<tr><td style="font-weight:700">${s.name}${du!==null&&du<=30?` <span class="badge" style="background:#fee2e2;color:#dc2626">${du<0?'Venc.':du+'d'}</span>`:''}</td>
       <td><span style="color:var(--R);font-weight:700">${s.qty}</span> ${s.unit}</td><td>${s.minQty}</td>
@@ -3846,7 +3899,8 @@ const CSV_FIELDS = {
     label: 'Estoque',
     docField: null,
     fields: [
-      {key:'name',label:'Material'},
+      {key:'name',label:'Insumo'},
+      {key:'category',label:'Categoria'},
       {key:'unit',label:'Unidade'},
       {key:'cost',label:'Custo'},
       {key:'qty',label:'Quantidade'},
@@ -4844,7 +4898,7 @@ function exportLivroCaixa(){
   const proFilt=document.getElementById('rep-pro-filter')?.value||'';
   const proLabel=proFilt?(getPro(+proFilt).dispName||'Profissional'):'Todos os Profissionais';
   const months=_calendarMonthRanges(year);
-  const header=['Mês','Receita Bruta','Aluguel','Materiais','Despesas Dedutíveis','Base de Cálculo'].map(csvEsc).join(',');
+  const header=['Mês','Receita Bruta','Aluguel','Insumos','Despesas Dedutíveis','Base de Cálculo'].map(csvEsc).join(',');
   let totR=0,totA=0,totM=0;
   const lines=months.map(mo=>{
     const{receita,aluguel,materiais,lucro}=_profitLossForRange(mo.from,mo.to,proFilt);
@@ -5338,7 +5392,7 @@ function buildFinancialPDF(jsPDF,from,to,proId,period){
     {l:'Valor Bruto',v:pdfFmt(totalGross),c:[12,110,158]},
     {l:'Recebido',v:pdfFmt(totalPaid),c:[16,185,129]},
     {l:'Pendente',v:pdfFmt(totalPending),c:[245,158,11]},
-    {l:'Custo Materiais',v:pdfFmt(totalMatCost),c:[230,57,70]},
+    {l:'Custo Insumos',v:pdfFmt(totalMatCost),c:[230,57,70]},
     {l:'Comissões',v:pdfFmt(totalComm),c:[124,58,237]},
     {l:'Outros Pgtos',v:pdfFmt(totalOtherPay),c:[100,116,139]},
     {l:'Lucro Líquido',v:pdfFmt(lucroLiq),c:lucroLiq>=0?[16,185,129]:[230,57,70]},
