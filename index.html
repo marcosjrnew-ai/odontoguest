@@ -523,7 +523,10 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <div class="hero-c"><div class="hero-t" id="dash-greet">Bem-vinda!</div><div class="hero-s" id="dash-sub"></div></div></div>
   <div id="dash-alerts"></div>
   <div class="g4" style="margin-bottom:18px" id="dash-stats"></div>
-  <div class="g2"><div class="card"><div class="card-hd"><span class="nav-icon" data-ico="agenda"></span> Hoje</div><div id="dash-today"></div></div>
+  <div class="g2"><div>
+  <div class="card" style="margin-bottom:12px"><div class="card-hd"><span class="nav-icon" data-ico="agenda"></span> Hoje</div><div id="dash-today"></div></div>
+  <div class="card"><div class="card-hd"><span class="nav-icon" data-ico="messages"></span> Confirmações Pendentes — Hoje/Amanhã</div><div id="dash-confirm"></div></div>
+  </div>
   <div><div class="card" style="margin-bottom:12px"><div class="card-hd"><span class="nav-icon" data-ico="briefcase"></span> Comissões Pendentes</div><div id="dash-comm"></div></div>
   <div class="card" style="margin-bottom:12px"><div class="card-hd"><span class="nav-icon" data-ico="alert"></span> Estoque Crítico</div><div id="dash-stock"></div></div>
   <div class="card"><div class="card-hd"><span class="nav-icon" data-ico="returns"></span> Retornos Próximos</div><div id="dash-rets"></div></div></div></div>
@@ -1560,6 +1563,7 @@ const LS={get:k=>{try{return JSON.parse(localStorage.getItem('og3_'+k));}catch{r
 const SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24h em milissegundos
 const uid=()=>Date.now()+Math.floor(Math.random()*9999);
 const today=()=>new Date().toISOString().split('T')[0];
+const tomorrowDate=()=>{const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().split('T')[0];};
 const fmt=n=>(+n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const age=dob=>{const d=new Date(dob),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a;};
 const daysUntil=d=>{const t=new Date(d+'T00:00:00'),n=new Date();n.setHours(0,0,0,0);return Math.round((t-n)/86400000);};
@@ -2075,6 +2079,39 @@ function renderDashboard(){
     document.getElementById('dash-comm').innerHTML=commHtml?commHtml+`<div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:2px solid #e2e8f0;font-size:13px"><span style="font-weight:800">Total:</span><span style="font-weight:900;color:#10b981">${fmt(totalComm)}</span></div>${totalComm>500?'<div style="margin-top:6px;padding:6px 10px;background:#fef3c7;border-radius:8px;font-size:11px;color:#92400e;font-weight:700">⚠️ Comissões acumuladas acima de R$ 500,00</div>':''}`:
       '<div style="color:var(--t3);font-size:12.5px">Sem comissões pendentes.</div>';
   } else { document.getElementById('dash-comm').innerHTML='<div style="color:var(--t3);font-size:12.5px">Nenhum profissional com comissão configurada.</div>'; }
+  renderDashConfirmPending();
+}
+// Painel de confirmações pendentes (hoje/amanhã) — meio-termo pro hábito manual de
+// lembrete diário, já que automação em segundo plano (sem alguém com o app aberto)
+// está fora de alcance por ora (mesma limitação do Google Calendar, ver CLAUDE.md).
+function renderDashConfirmPending(){
+  const el=document.getElementById('dash-confirm');if(!el)return;
+  const t=today(),tmrw=tomorrowDate();
+  const pending=D.appointments.filter(a=>(a.date===t||a.date===tmrw)&&a.status!=='confirmed'&&a.status!=='cancelled'&&a.status!=='completed')
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+  if(!pending.length){el.innerHTML='<div style="color:#10b981;font-size:13px;font-weight:700">✅ Tudo confirmado!</div>';return;}
+  el.innerHTML=pending.map(a=>{
+    const p=getPat(a.patientId),pr=getPro(a.professionalId),proc=getProc(a.procedureId),isToday=a.date===t;
+    return`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #f1f5f9">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700">${patDisp(a.patientId)} ${waBadge(p.phone)}</div>
+        <div style="font-size:11.5px;color:var(--t3)">
+          <span class="badge" style="background:${isToday?'#fef3c7':'#dbeafe'};color:${isToday?'#92400e':'#2563eb'}">${isToday?'Hoje':'Amanhã'}</span>
+          ${a.time} · ${proc.name} · ${pr.dispName?.split(' ').pop()}
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;flex-shrink:0">
+        ${p.phone?`<button class="btn btn-sm btn-wa" onclick="sendAptReminderById(${a.id})" title="Enviar lembrete WhatsApp">📱</button>`:''}
+        <button class="btn btn-sm btn-p" onclick="confirmApt(${a.id})" title="Marcar como confirmado">✓</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function confirmApt(id){
+  const a=D.appointments.find(x=>x.id===id);if(!a)return;
+  a.status='confirmed';save('appointments');
+  if(activePage==='dashboard')renderDashboard();else renderDashConfirmPending();
+  if(activePage==='agenda')renderAgenda();
 }
 
 // ─── AGENDA (per professional) ─────────────────────────────
