@@ -226,6 +226,9 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 .btn-sm{padding:6px 12px;font-size:12px}
 .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
 .chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.help-ico{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#e2e8f0;color:#475569;font-size:10.5px;font-weight:800;border:none;cursor:pointer;flex-shrink:0;line-height:1;vertical-align:middle;font-family:inherit}
+.help-ico:hover{background:#cbd5e1}
+#help-popover{display:none;position:fixed;z-index:9999;max-width:280px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:12px 14px;font-size:12.5px;color:var(--t2);line-height:1.5;text-align:left;text-transform:none;font-weight:400;letter-spacing:normal}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl th{text-align:left;padding:9px 13px;font-size:10.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #f1f5f9;white-space:nowrap}
 .tbl td{padding:10px 13px;border-bottom:1px solid #f8fafc;color:#334155;vertical-align:middle}
@@ -458,6 +461,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 <div id="app">
 <button id="hamburger-btn" onclick="toggleSidebar()" title="Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg></button>
 <div id="sb-overlay" onclick="toggleSidebar()"></div>
+<div id="help-popover"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div id="help-popover-text" style="flex:1"></div><button onclick="closeHelp()" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--t3);flex-shrink:0;padding:0;line-height:1">✕</button></div></div>
 <div class="app-inner">
 <nav id="sidebar">
   <div class="s-logo" onclick="if(typeof go!=='undefined')go('dashboard')" style="cursor:pointer" title="Ir para o Painel">
@@ -819,7 +823,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     </div>
   </div>
   <div class="card" style="margin-top:16px">
-    <div class="card-hd"><span class="nav-icon" data-ico="history"></span> Log de Exclusões</div>
+    <div class="card-hd"><span class="nav-icon" data-ico="history"></span> Log de Exclusões <button type="button" class="help-ico" onclick="event.stopPropagation();openHelp('deletionLog',this)">?</button></div>
     <div style="font-size:12.5px;color:var(--t3);margin-bottom:12px">Registro de tudo que foi excluído no sistema, por quem e quando. Exclusão é restrita ao Administrador.</div>
     <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Data/Hora</th><th>Tipo</th><th>Excluído por</th><th>Registro</th></tr></thead><tbody id="admin-dellog"></tbody></table></div>
   </div>
@@ -1967,6 +1971,34 @@ function closeSidebarMobile(){
   document.getElementById('hamburger-btn')?.classList.remove('sb-open');
 }
 
+// ─── AJUDA CONTEXTUAL ("?") ─────────────────────────────────
+const HELP_TEXT={
+  rentLoss:'Esse alerta aparece quando, num mesmo dia, o valor pago em aluguel foi maior do que o total recebido dos pacientes atendidos naquele dia — ou seja, olhando só o aluguel, o dia "deu prejuízo". Ajuda a perceber rápido se algum período está compensando ou não.',
+  deletionLog:'Toda vez que alguém exclui um registro no sistema (paciente, agendamento, orçamento, etc.), fica guardado aqui quem excluiu, quando, e uma cópia completa do que foi apagado — mesmo que a exclusão em si só possa ser feita pelo Administrador. Serve como histórico de segurança.',
+  odontogram:'Mapa dos 32 dentes. Clique num dente pra marcar o que foi feito nele (Concluído, Pendente, Em Tratamento ou Extraído) — a cor muda de acordo com o status. O odontograma do prontuário do paciente junta o que foi marcado em todos os atendimentos dele.'
+};
+function openHelp(key,btn){
+  const pop=document.getElementById('help-popover');
+  if(pop.style.display==='block'&&pop.dataset.key===key){closeHelp();return;}
+  pop.dataset.key=key;
+  document.getElementById('help-popover-text').textContent=HELP_TEXT[key]||'';
+  const r=btn.getBoundingClientRect();
+  pop.style.display='block';pop.style.top=(r.bottom+8)+'px';pop.style.left=r.left+'px';
+  setTimeout(()=>{
+    const pw=pop.offsetWidth,vw=window.innerWidth,vh=window.innerHeight,ph=pop.offsetHeight;
+    let left=r.left,top=r.bottom+8;
+    if(left+pw>vw-10)left=vw-pw-10;
+    if(left<10)left=10;
+    if(top+ph>vh-10)top=r.top-ph-8;
+    pop.style.left=left+'px';pop.style.top=top+'px';
+  });
+}
+function closeHelp(){const pop=document.getElementById('help-popover');pop.style.display='none';delete pop.dataset.key;}
+document.addEventListener('click',e=>{
+  const pop=document.getElementById('help-popover');
+  if(pop.style.display==='block'&&!pop.contains(e.target)&&!e.target.classList.contains('help-ico'))closeHelp();
+});
+
 // ─── TEMA CLARO/ESCURO (mesmo padrão do SIGCOM) ──────────────────────────
 const ICO_SUN='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>';
 const ICO_MOON='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
@@ -2036,7 +2068,7 @@ function renderDashboard(){
       const pr=getPro(x.professionalId);
       return`${new Date(x.date+'T00:00:00').toLocaleDateString('pt-BR')} (${pr.dispName?.split(' ')[0]}): aluguel ${fmt(x.rentCost)} vs. ganho ${fmt(x.earned)}`;
     }).join(' · ');
-    al+=`<div class="alert-banner" style="background:#fee2e2;border:1.5px solid #fca5a5;color:#991b1b">📉 <b>${rentLosses.length} dia(s) com prejuízo</b> — aluguel maior que o ganho com pacientes (total ${fmt(totalLoss)}): ${detail}${rentLosses.length>3?'...':''}</div>`;
+    al+=`<div class="alert-banner" style="background:#fee2e2;border:1.5px solid #fca5a5;color:#991b1b">📉 <b>${rentLosses.length} dia(s) com prejuízo</b> <button type="button" class="help-ico" onclick="event.stopPropagation();openHelp('rentLoss',this)">?</button> — aluguel maior que o ganho com pacientes (total ${fmt(totalLoss)}): ${detail}${rentLosses.length>3?'...':''}</div>`;
   }
   document.getElementById('dash-alerts').innerHTML=al;
   document.getElementById('dash-stats').innerHTML=[
@@ -2457,7 +2489,7 @@ function buildOdonto(cid,odo){
   const row=nums=>nums.map(n=>{const st=odo[n]?.status||'',ob=odo[n]?.obs||'';
     return`<div class="tooth" onclick="openToothModal(${n},'${cid}')" title="Dente ${n}—${TN[n]||''}\n${ob}">
       <div class="tooth-num">${n}</div>${tSVG(n,st)}<div class="tooth-name">${TN[n]||''}</div></div>`;}).join('');
-  w.innerHTML=`<div style="font-size:12px;font-weight:800;color:var(--P);text-align:center;margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em">🦷 Odontograma — Clique no dente</div>
+  w.innerHTML=`<div style="font-size:12px;font-weight:800;color:var(--P);text-align:center;margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em">🦷 Odontograma — Clique no dente <button type="button" class="help-ico" style="text-transform:none" onclick="event.stopPropagation();openHelp('odontogram',this)">?</button></div>
     <div style="display:flex;gap:2px;justify-content:center;margin-bottom:3px"><div style="display:flex;gap:2px">${row(UL)}</div><div style="width:2px;background:#bcd4e8;margin:0 6px"></div><div style="display:flex;gap:2px">${row(UR)}</div></div>
     <hr class="odonto-div"/>
     <div style="display:flex;gap:2px;justify-content:center;margin-top:3px"><div style="display:flex;gap:2px">${row(LL)}</div><div style="width:2px;background:#bcd4e8;margin:0 6px"></div><div style="display:flex;gap:2px">${row(LR)}</div></div>
