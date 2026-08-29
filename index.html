@@ -1607,6 +1607,106 @@ function checkAutoLogin(){
   return false;
 }
 
+// ─── GOOGLE CALENDAR (sincronização unidirecional, opcional, opt-in por profissional) ──
+// De propósito, bem mais simples que o login: sem servidor guardando token de longa duração,
+// só sincroniza enquanto o profissional está ativo no navegador (token GIS renovado sozinho,
+// sem popup, via prompt:'' — silencioso enquanto existir sessão Google ativa naquela aba).
+// Cada profissional só escreve no PRÓPRIO Google Calendar (escopo por pessoa, não da clínica).
+const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+let _gcalTokenClient = null;
+let _gcalToken = null; // {access_token, expiresAt}
+
+function _initGCalTokenClient(callback){
+  if(!window.google || !google.accounts || !google.accounts.oauth2){ setTimeout(()=>_initGCalTokenClient(callback), 300); return; }
+  if(!_gcalTokenClient){
+    _gcalTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GOOGLE_CALENDAR_SCOPE,
+      callback: resp=>{ if(_gcalTokenClient._cb) _gcalTokenClient._cb(resp); }
+    });
+  }
+  _gcalTokenClient._cb = callback;
+}
+function connectGoogleCalendar(){
+  if(!CU) return;
+  _initGCalTokenClient(tokenResponse=>{
+    if(!tokenResponse || tokenResponse.error){ alert('Não foi possível conectar ao Google Calendar.'); return; }
+    _gcalToken = {access_token:tokenResponse.access_token, expiresAt:Date.now()+((tokenResponse.expires_in||3600)*1000)-60000};
+    D.professionals = D.professionals.map(p=>p.id===CU.id ? {...p, googleCalendarSync:true} : p);
+    CU.googleCalendarSync = true;
+    save('professionals');
+    updateGCalUI();
+    syncPendingGCalEvents();
+    alert('Google Calendar conectado! Seus próximos agendamentos serão sincronizados automaticamente.');
+  });
+  setTimeout(()=>{ if(_gcalTokenClient) _gcalTokenClient.requestAccessToken({prompt:'consent'}); }, 350);
+}
+function disconnectGoogleCalendar(){
+  if(!CU) return;
+  D.professionals = D.professionals.map(p=>p.id===CU.id ? {...p, googleCalendarSync:false} : p);
+  CU.googleCalendarSync = false;
+  _gcalToken = null;
+  save('professionals');
+  updateGCalUI();
+}
+function updateGCalUI(){
+  const statusEl=document.getElementById('uprof-gcal-status');
+  if(!statusEl) return;
+  const on=!!CU?.googleCalendarSync;
+  statusEl.textContent = on ? '✅ Conectado' : 'Não conectado';
+  const connectBtn=document.getElementById('uprof-gcal-connect'),disconnectBtn=document.getElementById('uprof-gcal-disconnect');
+  if(connectBtn) connectBtn.style.display = on ? 'none' : 'inline-flex';
+  if(disconnectBtn) disconnectBtn.style.display = on ? 'inline-flex' : 'none';
+}
+function _ensureGCalToken(){
+  return new Promise((resolve,reject)=>{
+    if(_gcalToken && _gcalToken.expiresAt>Date.now()){ resolve(_gcalToken.access_token); return; }
+    _initGCalTokenClient(tokenResponse=>{
+      if(!tokenResponse || tokenResponse.error){ reject(new Error('sem token do Google Calendar')); return; }
+      _gcalToken = {access_token:tokenResponse.access_token, expiresAt:Date.now()+((tokenResponse.expires_in||3600)*1000)-60000};
+      resolve(_gcalToken.access_token);
+    });
+    setTimeout(()=>{ if(_gcalTokenClient) _gcalTokenClient.requestAccessToken({prompt:''}); }, 350);
+  });
+}
+async function syncApptToGoogleCalendar(apt){
+  if(!apt || !CU || !CU.googleCalendarSync || apt.professionalId!==CU.id) return;
+  try{
+    const token = await _ensureGCalToken();
+    const proc = getProc(apt.procedureId);
+    const startISO = `${apt.date}T${apt.time}:00`;
+    const end = new Date(startISO);
+    end.setMinutes(end.getMinutes()+(proc.dur||30));
+    const body = {
+      summary: `${patDisp(apt.patientId)} — ${proc.name}`,
+      start: {dateTime:startISO, timeZone:'America/Sao_Paulo'},
+      end: {dateTime:end.toISOString().slice(0,19), timeZone:'America/Sao_Paulo'}
+    };
+    const url = apt.gcalEventId
+      ? `https://www.googleapis.com/calendar/v3/calendars/primary/events/${apt.gcalEventId}`
+      : `https://www.googleapis.com/calendar/v3/calendars/primary/events`;
+    const resp = await fetch(url, {method:apt.gcalEventId?'PATCH':'POST', headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    if(!resp.ok){ console.warn('[GCal] falha ao sincronizar', resp.status); return; }
+    const data = await resp.json().catch(()=>null);
+    if(!apt.gcalEventId && data && data.id){
+      D.appointments = D.appointments.map(a=>a.id===apt.id ? {...a, gcalEventId:data.id} : a);
+      save('appointments');
+    }
+  }catch(e){ console.warn('[GCal] erro ao sincronizar agendamento:', e.message); }
+}
+async function deleteGCalEvent(apt){
+  if(!apt || !CU || !CU.googleCalendarSync || apt.professionalId!==CU.id || !apt.gcalEventId) return;
+  try{
+    const token = await _ensureGCalToken();
+    await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${apt.gcalEventId}`, {method:'DELETE', headers:{'Authorization':`Bearer ${token}`}});
+  }catch(e){ console.warn('[GCal] erro ao excluir evento:', e.message); }
+}
+async function syncPendingGCalEvents(){
+  if(!CU || !CU.googleCalendarSync) return;
+  const pending = D.appointments.filter(a=>a.professionalId===CU.id && a.date>=today() && !a.gcalEventId);
+  for(const apt of pending){ await syncApptToGoogleCalendar(apt); }
+}
+
 function enterApp(pro){
   CU=pro;
   document.getElementById('login-screen').style.display='none';
@@ -1619,6 +1719,7 @@ function enterApp(pro){
   if(isDev()||canAdmin()){ const n=document.getElementById('nav-backup'); if(n) n.style.display='flex'; }
   applyPermissions();
   renderDashboard();
+  if(CU.googleCalendarSync) setTimeout(syncPendingGCalEvents, 1500);
 }
 
 function doLogout(){
@@ -2020,10 +2121,12 @@ function saveApt(){
   const proc=getProc(procId);
   const finalVal=proc.price*(1-disc/100);
   const obj={patientId:patId,professionalId:proId,procedureId:procId,date:document.getElementById('apt-date').value,time:document.getElementById('apt-time').value,status:document.getElementById('apt-status').value,pay:document.getElementById('apt-pay').value,payst:document.getElementById('apt-payst').value,notes:document.getElementById('apt-notes').value,disc,finalVal};
-  EID?D.appointments=D.appointments.map(a=>a.id===EID?{...obj,id:EID}:a):D.appointments.push({...obj,id:uid()});
+  const apId=EID||uid();
+  EID?D.appointments=D.appointments.map(a=>a.id===EID?{...a,...obj,id:EID}:a):D.appointments.push({...obj,id:apId});
   save('appointments');cm('apt');renderAgenda();if(activePage==='dashboard')renderDashboard();
+  syncApptToGoogleCalendar(D.appointments.find(a=>a.id===apId));
 }
-function delApt(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.appointments.find(a=>a.id===EID);if(obj)logDeletion('appointment',obj);D.appointments=D.appointments.filter(a=>a.id!==EID);save('appointments');cm('apt');renderAgenda();}
+function delApt(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.appointments.find(a=>a.id===EID);if(obj)logDeletion('appointment',obj);D.appointments=D.appointments.filter(a=>a.id!==EID);save('appointments');cm('apt');renderAgenda();if(obj)deleteGCalEvent(obj);}
 function shareAptWhatsApp(){
   const patId=+document.getElementById('apt-pat').value,p=getPat(patId);
   const proc=getProc(+document.getElementById('apt-proc').value);
@@ -3620,6 +3723,7 @@ function openUserProfile() {
     photo.style.display = 'none';
     if (letter) letter.style.display = 'block';
   }
+  updateGCalUI();
   om('uprof');
 }
 
@@ -5645,6 +5749,17 @@ if(!checkAutoLogin()){
     <div style="font-size:11.5px;color:var(--t3)">Clique na foto para alterar</div>
     <div class="modal-title" id="uprof-name" style="margin:10px 0 4px">Nome</div>
     <div id="uprof-role" style="font-size:13px;color:var(--t3)"></div>
+  </div>
+  <div style="background:var(--bg);border-radius:11px;padding:12px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div>
+        <div style="font-size:12.5px;font-weight:700">📅 Google Calendar</div>
+        <div style="font-size:11px;color:var(--t3)" id="uprof-gcal-status">Não conectado</div>
+      </div>
+      <button class="btn btn-p btn-sm" id="uprof-gcal-connect" onclick="connectGoogleCalendar()">Conectar</button>
+      <button class="btn btn-o btn-sm" id="uprof-gcal-disconnect" style="display:none" onclick="disconnectGoogleCalendar()">Desconectar</button>
+    </div>
+    <div style="font-size:10.5px;color:var(--t3);margin-top:6px">Seus próprios agendamentos passam a criar um evento no seu Google Calendar pessoal automaticamente. Só funciona enquanto você estiver com o app aberto e logado no Google.</div>
   </div>
   <div class="modal-footer">
     <button class="btn btn-o" onclick="cm('uprof')">Fechar</button>
