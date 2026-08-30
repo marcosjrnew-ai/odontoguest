@@ -3394,6 +3394,76 @@ function renderBudgets(){
     </div>`;
   }).join('')||'<div class="card" style="color:var(--t3)">Nenhum orçamento.</div>';
 }
+// ─── MARCA DOS IMPRESSOS (orçamento/receituário/recibo) ─────────────────────
+// Padrão visual definido a partir de referências reais do talão físico da Lana
+// (orçamento.jpeg, Receituário.jpeg, cartão de visita.jpeg — 30/08/2026): fundo claro, dois
+// tons de marca (accentColor do usuário = rosa por padrão nas peças físicas + um verde-petróleo
+// fixo pro canto decorativo), pill badges arredondados nos títulos de seção, ícones de contato,
+// tagline cursiva no rodapé. Compartilhado pelos 3 documentos pra não triplicar CSS.
+// cfg.logo (upload em Configurações) precisa ter fundo transparente pra encaixar bem aqui — um
+// PNG com fundo sólido aparece como um retângulo colado na página. Sem logo, cai num wordmark
+// estilizado com o nome do consultório (mesmas fontes, mesma cor de destaque).
+const PRINT_ACCENT2='#0d2b28';
+const PRINT_FONTS='<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Caveat:wght@600&display=swap" rel="stylesheet">';
+const PRINT_ICON={
+  phone:'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>',
+  calendar:'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  heart:'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>',
+  tooth:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-2.5 0-3.5 1.5-5.5 1.5S3 3 3 3s-.5 6 1 9c1 2 1.5 3 1.5 5.5 0 1.5 1 2.5 2 2.5s1.5-1.5 1.5-3.5.5-3 2-3 2 1 2 3 .5 3.5 1.5 3.5 2-1 2-2.5c0-2.5.5-3.5 1.5-5.5 1.5-3 1-9 1-9s-1.5 1.5-3.5 1.5S14.5 3 12 3Z"/></svg>'
+};
+// CSS base comum aos 3 documentos — cada um ainda define suas próprias classes de conteúdo
+// (tabela do orçamento, caixa do receituário, texto do recibo) por cima disso.
+function _printBrandCSS(accent){return`
+  *{box-sizing:border-box}
+  body{font-family:'DM Sans',Arial,sans-serif;padding:0;margin:0;color:#1e293b;position:relative}
+  .sheet{max-width:720px;margin:auto;padding:40px 38px 34px;position:relative;overflow:hidden}
+  .corner-tl,.corner-br{position:absolute;width:120px;height:120px;z-index:0}
+  .corner-tl{top:0;left:0}
+  .corner-br{bottom:0;right:0}
+  .sheet>*:not(.corner-tl):not(.corner-br){position:relative;z-index:1}
+  .hd{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1.5px solid ${accent}55;padding-bottom:16px;margin-bottom:20px}
+  .hd-logo{display:flex;align-items:center;gap:12px}
+  .hd-logo img{width:64px;height:64px;object-fit:contain;flex-shrink:0}
+  .brand-name{font-family:'Quicksand',sans-serif;font-weight:700;font-size:23px;color:#233047;line-height:1.15}
+  .brand-sub{font-family:'Quicksand',sans-serif;font-weight:600;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:${accent};margin-top:1px}
+  .hd-contact{font-size:11px;color:#4a5568;text-align:right;line-height:1.7}
+  .hd-contact div{display:flex;align-items:center;justify-content:flex-end;gap:5px}
+  .hd-contact svg{color:${accent};flex-shrink:0}
+  .doc-title{display:flex;align-items:center;gap:10px;margin:0 0 18px}
+  .doc-title h1{font-family:'Quicksand',sans-serif;font-size:19px;letter-spacing:.03em;text-transform:uppercase;color:#233047;margin:0}
+  .doc-title .ln{flex:1;height:1px;background:${accent}55}
+  .pill{display:inline-block;background:${accent}2a;color:#3a2530;padding:5px 14px;border-radius:999px;font-family:'Quicksand',sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px}
+  .tagline{margin-top:26px;font-family:'Caveat',cursive;font-size:18px;color:#334155;display:flex;align-items:center;gap:6px}
+  .tagline svg{color:${accent}}
+  .footer{margin-top:26px;font-size:9.5px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
+  .sign{margin-top:34px;font-size:12.5px;text-align:center}
+  .sign .line{border-top:1px solid #94a3b8;width:300px;margin:0 auto 6px}
+  .bottom-row{display:flex;justify-content:space-between;gap:24px;margin-top:18px;align-items:flex-start}
+`;}
+// logoSize/divider por documento — na referência física o receituário tem a logo bem maior
+// que o orçamento/recibo, e uma linha vertical separando o bloco nome/logo do bloco de contato
+// (o orçamento não tem essa linha). Ajustável por chamada em vez de fixo, cada print* decide.
+function _printHeader(cfg,accent,opts){
+  opts=opts||{};const logoSize=opts.logoSize||64,divider=!!opts.divider;
+  const logo=cfg.logo?`<img src="${cfg.logo}" style="width:${logoSize}px;height:${logoSize}px"/>`:`<div style="width:${logoSize*.84}px;height:${logoSize*.84}px;border-radius:50%;background:${accent}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:${accent}">${PRINT_ICON.tooth}</div>`;
+  return`<div class="hd">
+    <div class="hd-logo">${logo}<div><div class="brand-name">${cfg.name||'Consultório Odontológico'}</div><div class="brand-sub">${cfg.cro?'CRO '+cfg.cro:'Cirurgiã Dentista'}</div></div></div>
+    <div class="hd-contact"${divider?` style="border-left:1.5px solid ${accent}55;padding-left:16px"`:''}>${cfg.phone?`<div>${cfg.phone} ${PRINT_ICON.phone}</div>`:''}${cfg.addr?`<div>${cfg.addr} ${PRINT_ICON.pin}</div>`:''}</div>
+  </div>`;
+}
+function _printTagline(){return`<div class="tagline">Cuidar do seu sorriso é transformar vidas! ${PRINT_ICON.heart}</div>`;}
+// Canto decorativo — path com 2 curvas (não um triângulo reto), imitando a "onda" recortada da
+// referência física, com um traço rosa fino logo por fora do preenchimento verde-petróleo.
+function _printCorners(accent){return`
+  <svg class="corner-tl" viewBox="0 0 140 140" preserveAspectRatio="none">
+    <path d="M0,0 L112,0 C95,14 100,30 78,40 C58,49 62,68 40,76 C22,83 8,80 0,68 Z" fill="${PRINT_ACCENT2}"/>
+    <path d="M0,0 L112,0 C95,14 100,30 78,40 C58,49 62,68 40,76 C22,83 8,80 0,68" fill="none" stroke="${accent}" stroke-width="2.4"/>
+  </svg>
+  <svg class="corner-br" viewBox="0 0 140 140" preserveAspectRatio="none">
+    <path d="M140,140 L28,140 C45,126 40,110 62,100 C82,91 78,72 100,64 C118,57 132,60 140,72 Z" fill="${PRINT_ACCENT2}"/>
+    <path d="M140,140 L28,140 C45,126 40,110 62,100 C82,91 78,72 100,64 C118,57 132,60 140,72" fill="none" stroke="${accent}" stroke-width="2.4"/>
+  </svg>`;}
 function printBud(){
   const patId=+document.getElementById('bud-pat').value,p=getPat(patId),pr=getPro(+document.getElementById('bud-pro').value);
   const items=[...document.querySelectorAll('#bud-items > div')].map(r=>({procedureId:+r.querySelector('.bud-proc').value,qty:+r.querySelector('.bud-qty').value||1})).filter(i=>i.procedureId>0);
@@ -3419,41 +3489,32 @@ function printBud(){
   ║                                                              ║
   ║  Violações estão sujeitas a sanções civis e criminais.       ║
   ╚══════════════════════════════════════════════════════════════╝
---><html><head><title>Orçamento — ${p.name}</title><style>
-  *{box-sizing:border-box}
-  body{font-family:Arial,sans-serif;padding:34px;max-width:720px;margin:auto;color:#1e293b}
-  .hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid ${accent};padding-bottom:14px;margin-bottom:16px}
-  .hd img{width:58px;height:58px;object-fit:contain;border-radius:10px;flex-shrink:0}
-  .hd-name{font-size:19px;font-weight:800;color:${accent}}
-  .hd-meta{font-size:11.5px;color:#64748b;margin-top:2px;line-height:1.5}
-  h1{font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:#64748b;margin:0 0 14px}
-  .info{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;font-size:13px;margin-bottom:16px;padding:12px 14px;background:#f8fafc;border-radius:10px}
-  .info b{color:#334155}
-  table{width:100%;border-collapse:collapse;margin:14px 0}
-  th{background:${accent}18;color:${accent};padding:9px;text-align:left;font-size:12px}
-  td{padding:9px;border-bottom:1px solid #e2e8f0;font-size:13px}
-  .totbox{margin-top:6px;padding:12px 14px;background:#f8fafc;border-radius:10px}
-  .totbox div{display:flex;justify-content:space-between;font-size:13.5px;padding:2px 0}
-  .total{font-size:18px;font-weight:800;color:${accent}}
-  .footer{margin-top:30px;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
-  .sign{margin-top:36px;font-size:13px;text-align:center}
-  .sign .line{border-top:1px solid #94a3b8;width:320px;margin:0 auto 6px}
-  </style></head><body>
-  <div class="hd">
-  ${cfg.logo?`<img src="${cfg.logo}"/>`:''}
-  <div><div class="hd-name">${cfg.name||'Consultório Odontológico'}</div>
-  <div class="hd-meta">${cfg.cro?cfg.cro+' &nbsp;·&nbsp; ':''}${cfg.phone?cfg.phone+' &nbsp;·&nbsp; ':''}${cfg.addr||''}</div></div>
-  </div>
-  <h1>Orçamento Odontológico</h1>
+--><html><head><title>Orçamento — ${p.name}</title>${PRINT_FONTS}<style>${_printBrandCSS(accent)}
+  .info{display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;font-size:12.5px;margin-bottom:18px}
+  .info b{color:#233047}
+  table{width:100%;border-collapse:collapse;margin:6px 0 16px;border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px #edd6dc}
+  th{background:${accent}2a;color:#3a2530;padding:9px 10px;text-align:left;font-size:11.5px;font-family:'Quicksand',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+  td{padding:8px 10px;border-bottom:1px solid #f1e4e8;font-size:12.5px}
+  .totbox{margin-top:4px;padding:12px 14px;background:${accent}12;border-radius:10px}
+  .totbox div{display:flex;justify-content:space-between;font-size:13px;padding:2px 0}
+  .total{font-size:17px;font-weight:800;color:${accent}}
+  .pay-opts{display:flex;flex-direction:column;gap:7px;font-size:12.5px;margin-top:6px}
+  .pay-opts span{display:inline-flex;align-items:center;gap:7px}
+  .pay-opts b{width:13px;height:13px;border:1.5px solid #c9a3ae;border-radius:3px;display:inline-block;flex-shrink:0}
+  .valid-box{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#4a5568;border:1px solid #e2c6ce;border-radius:9px;padding:7px 12px;margin-top:14px}
+  .valid-box svg{color:${accent}}
+  .obs-box{border:1px dashed #d9b6c0;border-radius:10px;min-height:64px;margin-top:8px}
+  </style></head><body><div class="sheet">${_printCorners(accent)}
+  ${_printHeader(cfg,accent)}
+  <div class="doc-title"><h1>Orçamento</h1><div class="ln"></div></div>
+  <div class="pill">Dados do Paciente</div>
   <div class="info">
     <div><b>Paciente:</b> ${p.name}${p.social?' ('+p.social+')':''}</div>
     <div><b>Nascimento:</b> ${dob||'—'}</div>
     <div><b>CPF:</b> ${p.cpf||'—'}</div>
     <div><b>Endereço:</b> ${p.addr||'—'}</div>
     <div><b>Responsável:</b> ${pr.dispName||'—'}</div>
-    <div><b>Forma de Pagamento:</b> ${payLbl}</div>
     <div><b>Data:</b> ${new Date().toLocaleDateString('pt-BR')}</div>
-    <div><b>Válido até:</b> ${valid?new Date(valid+'T00:00:00').toLocaleDateString('pt-BR'):'—'}</div>
   </div>
   <table><thead><tr><th>Procedimento</th><th>Qtd</th><th>Valor Unit.</th><th>Subtotal</th></tr></thead><tbody>
   ${items.map(i=>`<tr><td>${getProc(i.procedureId).name}</td><td>${i.qty}</td><td>${fmt(getProc(i.procedureId).price)}</td><td>${fmt((getProc(i.procedureId).price||0)*i.qty)}</td></tr>`).join('')}
@@ -3464,8 +3525,21 @@ function printBud(){
     <div><span>Entrada / Pago:</span><b>${fmt(paid)}</b></div>
     <div><span>Saldo Restante:</span><span class="total">${fmt(discVal-paid)}</span></div>
   </div>
-  <div class="sign"><div class="line"></div>Assinatura do Paciente</div>
+  <div class="bottom-row">
+    <div style="flex:1">
+      <div class="pill">Observações</div>
+      <div class="obs-box"></div>
+    </div>
+    <div style="flex:0 0 auto">
+      <div class="pill">Forma de Pagamento</div>
+      <div class="pay-opts">${['À vista','Cartão de Crédito','PIX','Convênio'].map(o=>`<span><b style="${payLbl===o||(o==='À vista'&&payLbl==='A combinar')?`background:${accent}`:''}"></b>${o}</span>`).join('')}</div>
+    </div>
+  </div>
+  <div class="valid-box">${PRINT_ICON.calendar} Válido até ${valid?new Date(valid+'T00:00:00').toLocaleDateString('pt-BR'):'____/____/______'}</div>
+  ${_printTagline()}
+  <div class="sign"><div class="line"></div>${p.name}<br><span style="font-size:10.5px;color:#94a3b8">Assinatura do Paciente</span></div>
   <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')} — OdontoGuest v3.9</div>
+  </div>
   <script>window.print();<\/script><!-- COPYRIGHT -->
 <div style="display:none" id="og-copyright" aria-hidden="true">© 2026 OdontoGuest. Todos os direitos reservados. Protegido pela Lei 9.610/1998. Uso não autorizado é proibido.</div>
 </body></html>`);
@@ -3531,6 +3605,8 @@ function printPresc(){
   const items=[...document.querySelectorAll('#presc-items .presc-item')].map(i=>i.value.trim()).filter(Boolean);
   const date=document.getElementById('presc-date').value,notes=document.getElementById('presc-notes').value,cfg=D.config||{};
   const accent=cfg.accentColor||'#0c6e9e';
+  let age='';
+  if(p.dob){const b=new Date(p.dob+'T00:00:00'),t=new Date();age=t.getFullYear()-b.getFullYear()-((t.getMonth()<b.getMonth()||(t.getMonth()===b.getMonth()&&t.getDate()<b.getDate()))?1:0);}
   const pw=window.open('','_blank');
   pw.document.write(`<!DOCTYPE html>
 <!--
@@ -3548,39 +3624,38 @@ function printPresc(){
   ║                                                              ║
   ║  Violações estão sujeitas a sanções civis e criminais.       ║
   ╚══════════════════════════════════════════════════════════════╝
---><html><head><title>Receita — ${p.name}</title><style>
-  *{box-sizing:border-box}
-  body{font-family:Arial,sans-serif;padding:34px;max-width:680px;margin:auto;color:#1e293b}
-  .hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid ${accent};padding-bottom:14px;margin-bottom:16px}
-  .hd img{width:58px;height:58px;object-fit:contain;border-radius:10px;flex-shrink:0}
-  .hd-name{font-size:19px;font-weight:800;color:${accent}}
-  .hd-meta{font-size:11.5px;color:#64748b;margin-top:2px;line-height:1.5}
-  h1{font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:#64748b;margin:0 0 14px}
-  .info{display:flex;justify-content:space-between;font-size:13px;margin-bottom:20px;padding:12px 14px;background:#f8fafc;border-radius:10px}
-  .rx{font-size:34px;color:${accent};font-weight:800;margin-bottom:10px}
-  .items div{font-size:14.5px;padding:10px 0;border-bottom:1px solid #e2e8f0}
-  .notes{margin-top:18px;font-size:13px;color:#475569;background:#f8fafc;border-radius:10px;padding:12px 14px}
-  .footer{margin-top:40px;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
-  .sign{margin-top:44px;font-size:13px;text-align:center}
-  .sign .line{border-top:1px solid #94a3b8;width:320px;margin:0 auto 6px}
-  </style></head><body>
-  <div class="hd">
-  ${cfg.logo?`<img src="${cfg.logo}"/>`:''}
-  <div><div class="hd-name">${cfg.name||'Consultório Odontológico'}</div>
-  <div class="hd-meta">${cfg.cro?cfg.cro+' &nbsp;·&nbsp; ':''}${cfg.phone?cfg.phone+' &nbsp;·&nbsp; ':''}${cfg.addr||''}</div></div>
-  </div>
-  <h1>Receituário</h1>
+--><html><head><title>Receita — ${p.name}</title>${PRINT_FONTS}<style>${_printBrandCSS(accent)}
+  .info{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px;color:#4a5568}
+  .rx-box{border:1.5px solid ${accent}66;border-radius:14px;padding:22px 22px 26px;margin-top:14px}
+  .rx-mark{font-family:'Caveat',cursive;font-size:32px;color:${accent};font-weight:600;margin-bottom:8px}
+  .items div{font-size:14px;padding:9px 0;border-bottom:1px dotted #d9b6c0}
+  .items div:last-child{border-bottom:none}
+  .notes{margin-top:16px;font-size:12.5px;color:#475569;background:${accent}12;border-radius:10px;padding:11px 14px}
+  </style></head><body><div class="sheet">${_printCorners(accent)}
+  ${_printHeader(cfg,accent,{logoSize:104,divider:true})}
+  <div class="doc-title"><div class="ln"></div><h1>Receituário</h1>${PRINT_ICON.tooth.replace('currentColor',accent)}<div class="ln"></div></div>
   <div class="info">
     <div><b>Paciente:</b> ${p.name}${p.social?' ('+p.social+')':''}</div>
     <div><b>Data:</b> ${date?new Date(date+'T00:00:00').toLocaleDateString('pt-BR'):new Date().toLocaleDateString('pt-BR')}</div>
   </div>
-  <div class="rx">℞</div>
+  <div class="info">
+    <div><b>Idade:</b> ${age!==''?age+' anos':'—'}</div>
+    <div><b>Telefone:</b> ${p.phone?formatPhoneDisp(p.phone):'—'}</div>
+  </div>
+  <div class="rx-box">
+  <div class="rx-mark">℞</div>
   <div class="items">
   ${items.map(t=>`<div>${t}</div>`).join('')}
   </div>
+  </div>
   ${notes?`<div class="notes"><b>Orientações:</b> ${notes}</div>`:''}
-  <div class="sign"><div class="line"></div>${pr.dispName||''}</div>
+  <div class="bottom-row" style="align-items:flex-end">
+    <div style="font-size:12px;color:#4a5568">Local: <span style="display:inline-block;border-bottom:1px solid #cbd5e1;width:200px">&nbsp;</span></div>
+    <div class="sign" style="margin-top:0"><div class="line"></div>${pr.dispName||''}${cfg.cro?'<br><span style="font-size:10.5px;color:#94a3b8">CRO '+cfg.cro+'</span>':''}</div>
+  </div>
+  ${_printTagline()}
   <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')} — OdontoGuest v3.9</div>
+  </div>
   <script>window.print();<\/script><!-- COPYRIGHT -->
 <div style="display:none" id="og-copyright" aria-hidden="true">© 2026 OdontoGuest. Todos os direitos reservados. Protegido pela Lei 9.610/1998. Uso não autorizado é proibido.</div>
 </body></html>`);
@@ -3711,34 +3786,22 @@ function printReceipt(){
   ║                                                              ║
   ║  Violações estão sujeitas a sanções civis e criminais.       ║
   ╚══════════════════════════════════════════════════════════════╝
---><html><head><title>Recibo Nº ${num} — ${p.name}</title><style>
-  *{box-sizing:border-box}
-  body{font-family:Arial,sans-serif;padding:34px;max-width:680px;margin:auto;color:#1e293b}
-  .hd{display:flex;align-items:center;gap:14px;border-bottom:3px solid ${accent};padding-bottom:14px;margin-bottom:16px}
-  .hd img{width:58px;height:58px;object-fit:contain;border-radius:10px;flex-shrink:0}
-  .hd-name{font-size:19px;font-weight:800;color:${accent}}
-  .hd-meta{font-size:11.5px;color:#64748b;margin-top:2px;line-height:1.5}
-  .titlerow{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 18px}
-  h1{font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:#64748b;margin:0}
-  .num{font-size:14px;font-weight:800;color:${accent}}
-  .value{font-size:30px;font-weight:800;color:${accent};text-align:right;margin-bottom:22px}
-  .body-txt{font-size:14.5px;line-height:1.9;text-align:justify;padding:16px 18px;background:#f8fafc;border-radius:10px}
-  .footer{margin-top:40px;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
-  .sign{margin-top:50px;font-size:13px;text-align:center}
-  .sign .line{border-top:1px solid #94a3b8;width:320px;margin:0 auto 6px}
-  </style></head><body>
-  <div class="hd">
-  ${cfg.logo?`<img src="${cfg.logo}"/>`:''}
-  <div><div class="hd-name">${cfg.name||'Consultório Odontológico'}</div>
-  <div class="hd-meta">${cfg.cro?cfg.cro+' &nbsp;·&nbsp; ':''}${cfg.taxId?'CPF/CNPJ: '+cfg.taxId+' &nbsp;·&nbsp; ':''}${cfg.phone?cfg.phone+' &nbsp;·&nbsp; ':''}${cfg.addr||''}</div></div>
-  </div>
-  <div class="titlerow"><h1>Recibo de Prestação de Serviço</h1><span class="num">Nº ${num}</span></div>
+--><html><head><title>Recibo Nº ${num} — ${p.name}</title>${PRINT_FONTS}<style>${_printBrandCSS(accent)}
+  .titlerow{display:flex;justify-content:space-between;align-items:center;margin:0 0 18px}
+  .num{font-size:12.5px;font-weight:700;color:#3a2530;background:${accent}22;border-radius:999px;padding:5px 14px;font-family:'Quicksand',sans-serif}
+  .value{font-size:28px;font-weight:800;color:${accent};text-align:right;margin-bottom:20px;font-family:'Quicksand',sans-serif}
+  .body-txt{font-size:14px;line-height:1.9;text-align:justify;padding:16px 18px;background:${accent}12;border-radius:10px}
+  </style></head><body><div class="sheet">${_printCorners(accent)}
+  ${_printHeader(cfg,accent)}
+  <div class="titlerow"><div class="doc-title" style="margin:0"><h1>Recibo</h1></div><span class="num">Nº ${num}</span></div>
   <div class="value">${fmt(value)}</div>
   <div class="body-txt">Recebi de <b>${p.name}</b>${p.cpf?', CPF '+p.cpf:''}, a importância de <b>${fmt(value)}</b>
   (${valorPorExtenso(value)}), referente a <b>${desc}</b>, ${payLbl?'pago via '+payLbl+', ':''}em ${date?new Date(date+'T00:00:00').toLocaleDateString('pt-BR'):new Date().toLocaleDateString('pt-BR')}.
   Para maior clareza e eficácia, firmo o presente recibo.</div>
-  <div class="sign"><div class="line"></div>${pr.dispName||''}${cfg.cro?' — '+cfg.cro:''}${cfg.taxId?' — CPF/CNPJ: '+cfg.taxId:''}</div>
+  <div class="sign"><div class="line"></div>${pr.dispName||''}${cfg.cro?'<br><span style="font-size:10.5px;color:#94a3b8">CRO '+cfg.cro+'</span>':''}${cfg.taxId?'<br><span style="font-size:10.5px;color:#94a3b8">CPF/CNPJ: '+cfg.taxId+'</span>':''}</div>
+  ${_printTagline()}
   <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')} — OdontoGuest v3.9</div>
+  </div>
   <script>window.print();<\/script><!-- COPYRIGHT -->
 <div style="display:none" id="og-copyright" aria-hidden="true">© 2026 OdontoGuest. Todos os direitos reservados. Protegido pela Lei 9.610/1998. Uso não autorizado é proibido.</div>
 </body></html>`);
