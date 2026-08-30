@@ -589,7 +589,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button>
   </div></div>
   <div id="agenda-legend" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"></div>
-  <div class="card" style="padding:0;overflow:hidden">
+  <div class="card" style="padding:0;overflow-x:auto">
     <div id="agenda-day-lbl" style="padding:12px 18px;background:#f0f7ff;border-bottom:1px solid var(--border);font-weight:800;color:var(--P);font-size:14px"></div>
     <div id="agenda-grid"></div>
   </div>
@@ -609,7 +609,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <div class="card-hd"><span class="nav-icon" data-ico="trending"></span> Origem dos Pacientes</div>
     <div id="pat-source-breakdown" style="display:flex;flex-direction:column;gap:6px"></div>
   </div>
-  <div class="card" style="padding:0;overflow:hidden">
+  <div class="card" style="padding:0;overflow-x:auto">
     <table class="tbl"><thead><tr><th>Paciente</th><th>Nome Social</th><th>WhatsApp</th><th>Idade</th><th>Sangue</th><th>Saldo</th><th></th></tr></thead>
     <tbody id="pat-body"></tbody></table>
   </div>
@@ -675,10 +675,10 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div class="g4" style="margin-bottom:18px" id="fin-stats"></div>
   <div class="g2" style="margin-bottom:14px">
     <div class="card"><div class="card-hd"><span class="nav-icon" data-ico="briefcase"></span> Comissões</div><div id="fin-comm"></div></div>
-    <div class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:800;font-size:14px;border-bottom:1px solid var(--border)">🦷 Por Procedimento</div>
+    <div class="card" style="padding:0;overflow-x:auto"><div style="padding:12px 16px;font-weight:800;font-size:14px;border-bottom:1px solid var(--border)">🦷 Por Procedimento</div>
     <table class="tbl"><thead><tr><th>Procedimento</th><th>Qtd</th><th>Bruto</th><th>Líquido</th></tr></thead><tbody id="fin-byproc"></tbody></table></div>
   </div>
-  <div class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:800;font-size:14px;border-bottom:1px solid var(--border)">Lançamentos</div>
+  <div class="card" style="padding:0;overflow-x:auto"><div style="padding:12px 16px;font-weight:800;font-size:14px;border-bottom:1px solid var(--border)">Lançamentos</div>
   <table class="tbl"><thead><tr><th>Data</th><th>Paciente</th><th>Procedimento</th><th>Profissional</th><th>Pgto</th><th>Valor</th><th>Status</th></tr></thead>
   <tbody id="fin-trans"></tbody></table></div>
 </div>
@@ -699,7 +699,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <div class="card" id="rep-chart-card"><div class="card-hd"><span class="nav-icon" data-ico="trending"></span> Desempenho por Profissional</div><canvas id="rep-chart" height="260"></canvas></div>
     <div class="card"><div class="card-hd"><span class="nav-icon" data-ico="briefcase"></span> Comissões Detalhadas</div><div id="rep-comm-detail"></div></div>
   </div>
-  <div class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:800;font-size:14px;border-bottom:1px solid var(--border)">🦷 Breakdown por Procedimento e Profissional</div>
+  <div class="card" style="padding:0;overflow-x:auto"><div style="padding:12px 16px;font-weight:800;font-size:14px;border-bottom:1px solid var(--border)">🦷 Breakdown por Procedimento e Profissional</div>
   <table class="tbl"><thead><tr><th>Profissional</th><th>Procedimento</th><th>Qtd</th><th>Valor Gerado</th><th>Comissão</th></tr></thead>
   <tbody id="rep-breakdown"></tbody></table></div>
   <div class="card" style="margin-top:14px">
@@ -732,7 +732,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div class="row-flex"><div><div class="s-title">Outros Pagamentos</div><div class="s-sub">Diárias, despesas extras e custos operacionais</div></div>
   <button class="btn btn-p no-print" onclick="openOtherPay()" id="btn-new-op">+ Lançar</button></div>
   <div class="g3" style="margin-bottom:16px" id="op-stats"></div>
-  <div class="card" style="padding:0;overflow:hidden">
+  <div class="card" style="padding:0;overflow-x:auto">
     <table class="tbl"><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Profissional</th><th>Valor</th><th></th></tr></thead>
     <tbody id="op-body"></tbody></table>
   </div>
@@ -746,7 +746,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <button class="btn btn-p" onclick="openSk()" id="btn-new-sk">+ Novo Item</button>
     <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button>
   </div></div>
-  <div class="card" style="padding:0;overflow:hidden">
+  <div class="card" style="padding:0;overflow-x:auto">
     <table class="tbl"><thead><tr>
       <th style="cursor:pointer" onclick="sortSk('name')">Insumo <span id="sk-sort-name"></span></th>
       <th style="cursor:pointer" onclick="sortSk('category')">Categoria <span id="sk-sort-category"></span></th>
@@ -765,7 +765,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <button class="btn btn-p" onclick="openEq()" id="btn-new-eq">+ Novo Instrumental</button>
     <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button>
   </div></div>
-  <div class="card" style="padding:0;overflow:hidden">
+  <div class="card" style="padding:0;overflow-x:auto">
     <table class="tbl"><thead><tr>
       <th style="cursor:pointer" onclick="sortEq('name')">Nome <span id="eq-sort-name"></span></th>
       <th style="cursor:pointer" onclick="sortEq('category')">Categoria <span id="eq-sort-category"></span></th>
@@ -2077,8 +2077,30 @@ function go(page){
   R[page]?.();
   closeSidebarMobile();
 }
-function cm(n){document.getElementById('m-'+n).style.display='none';EID=null;if(n==='audit'){_patientAuditMode=false;_patientAuditData=[];}}
-function om(n){document.getElementById('m-'+n).style.display='flex';}
+// Botão/gesto "voltar" do celular (Android) não tinha nenhum estado de histórico pra consumir —
+// como o app nunca dá push em history, o primeiro "voltar" saía direto do PWA, mesmo com uma
+// modal aberta na tela. om() empilha um estado por modal aberta (permite modais aninhadas, ex.
+// o modal do dente aberto de dentro do modal de atendimento); cm() consome o estado
+// correspondente quando fecha por outro caminho (botão Fechar, salvar, clique fora); o handler
+// de popstate fecha a modal do topo quando quem consome o estado é o botão/gesto voltar de
+// verdade. _suppressPopstate evita processar duas vezes o mesmo fechamento (cm chama
+// history.back(), que dispara popstate de novo).
+let _modalStack=[],_suppressPopstate=false;
+function cm(n){
+  document.getElementById('m-'+n).style.display='none';EID=null;
+  if(n==='audit'){_patientAuditMode=false;_patientAuditData=[];}
+  const idx=_modalStack.lastIndexOf(n);
+  if(idx!==-1){_modalStack.splice(idx,1);_suppressPopstate=true;history.back();}
+}
+function om(n){document.getElementById('m-'+n).style.display='flex';history.pushState({ogModal:n},'');_modalStack.push(n);}
+window.addEventListener('popstate',()=>{
+  if(_suppressPopstate){_suppressPopstate=false;return;}
+  if(_modalStack.length){
+    const n=_modalStack.pop();
+    const el=document.getElementById('m-'+n);if(el)el.style.display='none';
+    EID=null;if(n==='audit'){_patientAuditMode=false;_patientAuditData=[];}
+  }
+});
 
 // ─── DASHBOARD ─────────────────────────────────────────────
 // Compara, por dia+profissional, o custo de aluguel lançado (Outros Pagamentos, tipo "rent")
@@ -4423,7 +4445,7 @@ function handleImportFile(evt){
   if(!cfg){alert('Tipo de importação inválido.');return;}
 
   document.getElementById('import-type-label').textContent=cfg.label;
-  document.getElementById('m-import').style.display='flex';
+  om('import');
   document.getElementById('import-progress').style.display='block';
   document.getElementById('import-preview').innerHTML='';
   document.getElementById('import-duplicates').style.display='none';
@@ -6572,16 +6594,23 @@ window._fbFirstSync={};
 // sempre, sem erro nenhum no console. Bug real encontrado em 29/08/2026 (ver
 // CLAUDE.md, "falha de sincronismo"). Drenada por window._onFirestoreClinicDiscovered.
 window._fbPendingKeys=new Set();
-// Reconciliação da 1ª sincronização de cada coleção, por sessão: se o Firestore
-// vier vazio (ou incompleto) mas esse aparelho já tinha registro local não
-// migrado (ex.: dado criado antes da Fase 2 existir), evita apagar esse dado
-// local — em vez de D[key]=data direto, faz a união e sobe pro Firestore o que
-// só existia localmente. Bug real encontrado em 28/08/2026 (ver CLAUDE.md,
-// "Mudança de modelo do consultório da Lana"): sem isso, a 1ª sincronização de
-// um navegador sobrescrevia localStorage com o vazio vindo do Firestore.
+// Reconciliação da 1ª sincronização de cada coleção — precisa ser PERMANENTE (localStorage),
+// não por sessão de página. Bug real encontrado em 30/08/2026 (ver CLAUDE.md, "falha de
+// sincronismo"): window._fbFirstSync sozinho reseta a cada F5/reload (é só memória), então essa
+// proteção "não perder dado local" disparava de novo EM TODO carregamento do app, não só na
+// primeira vez de verdade — qualquer aparelho com dado velho (teste, demonstração de fábrica)
+// ainda guardado localmente reempurrava esse dado pro Firestore a cada reload, ressuscitando
+// registros que tinham acabado de ser apagados por outra pessoa. Corrigido: a flag "já fiz a
+// união uma vez" agora também é gravada no localStorage (`_fbFirstSyncKey`), por clínica+chave,
+// e checada ali também — só dispara de fato uma vez por aparelho, pra sempre, cobrindo a mesma
+// janela de risco de perda de dado (migração pré-Fase 2) sem o efeito colateral de reviver dado
+// já apagado de propósito depois.
+function _fbFirstSyncKey(key){return 'og3_fbFirstSyncDone_'+(window._fbActiveClinicId||'')+'_'+key;}
 window._onFirestoreCollectionUpdate=function(key,data,cache){
-  const isFirst=!window._fbFirstSync[key];
+  const doneBefore=window._fbFirstSync[key]||!!localStorage.getItem(_fbFirstSyncKey(key));
+  const isFirst=!doneBefore;
   window._fbFirstSync[key]=true;
+  if(isFirst)localStorage.setItem(_fbFirstSyncKey(key),'1');
   if(isFirst&&Array.isArray(data)&&cache instanceof Map){
     const remoteIds=new Set(cache.keys());
     const localOnly=(D[key]||[]).filter(rec=>!remoteIds.has(fbDocIdFor(key,rec)));
