@@ -195,6 +195,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t1);min-h
 #main{flex:1;padding:24px 20px;overflow-y:auto;max-height:100vh}
 .page{display:none}.page.active{display:block}
 .card{background:var(--card);border-radius:var(--rad);box-shadow:var(--sh);padding:20px}
+.card-nav{cursor:pointer;transition:transform .12s,box-shadow .12s}
+.card-nav:hover{transform:translateY(-2px);box-shadow:0 8px 20px -6px rgba(15,23,42,.18)}
+.card-nav:active{transform:translateY(0)}
 .s-title{font-family:'Sora',sans-serif;font-size:21px;font-weight:800;color:var(--t1)}
 .s-sub{font-size:13px;color:var(--t3);margin-top:2px}
 .row-flex{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap}
@@ -564,12 +567,12 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div id="dash-alerts"></div>
   <div class="g4" style="margin-bottom:18px" id="dash-stats"></div>
   <div class="g2"><div>
-  <div class="card" style="margin-bottom:12px"><div class="card-hd"><span class="nav-icon" data-ico="agenda"></span> Hoje</div><div id="dash-today"></div></div>
-  <div class="card"><div class="card-hd"><span class="nav-icon" data-ico="messages"></span> Confirmações Pendentes — Hoje/Amanhã</div><div id="dash-confirm"></div></div>
+  <div class="card card-nav" style="margin-bottom:12px" onclick="go('agenda')"><div class="card-hd"><span class="nav-icon" data-ico="agenda"></span> Hoje</div><div id="dash-today"></div></div>
+  <div class="card card-nav" onclick="go('agenda')"><div class="card-hd"><span class="nav-icon" data-ico="messages"></span> Confirmações Pendentes — Hoje/Amanhã</div><div id="dash-confirm"></div></div>
   </div>
-  <div><div class="card" style="margin-bottom:12px"><div class="card-hd"><span class="nav-icon" data-ico="briefcase"></span> Comissões Pendentes</div><div id="dash-comm"></div></div>
-  <div class="card" style="margin-bottom:12px"><div class="card-hd"><span class="nav-icon" data-ico="alert"></span> Estoque Crítico</div><div id="dash-stock"></div></div>
-  <div class="card"><div class="card-hd"><span class="nav-icon" data-ico="returns"></span> Retornos Próximos</div><div id="dash-rets"></div></div></div></div>
+  <div><div class="card card-nav" style="margin-bottom:12px" onclick="go('finance')"><div class="card-hd"><span class="nav-icon" data-ico="briefcase"></span> Comissões Pendentes</div><div id="dash-comm"></div></div>
+  <div class="card card-nav" style="margin-bottom:12px" onclick="go('stock')"><div class="card-hd"><span class="nav-icon" data-ico="alert"></span> Estoque Crítico</div><div id="dash-stock"></div></div>
+  <div class="card card-nav" onclick="go('returns')"><div class="card-hd"><span class="nav-icon" data-ico="returns"></span> Retornos Próximos</div><div id="dash-rets"></div></div></div></div>
 </div>
 
 <!-- AGENDA -->
@@ -1714,7 +1717,7 @@ const getSk=id=>D.stock.find(s=>s.id===+id)||{cost:0,name:""};
 const getSup=id=>D.suppliers.find(s=>s.id===+id)||{name:"—"};
 const patDisp=id=>{const p=getPat(id);return p.social||p.name;};
 const PATIENT_SOURCE_LABELS={indicacao:'Indicação de amigo/paciente',google:'Google / Pesquisa Online',instagram:'Instagram / Redes Sociais',gmn:'Google Meu Negócio / Avaliações',placa:'Placa / Fachada do consultório',convenio:'Convênio',retorno:'Já era paciente / Retorno',outro:'Outro'};
-const waBadge=(phone,msg)=>{const l=wa(phone,msg);return l?`<a href="${l}" target="_blank" style="color:#25d366;text-decoration:none;font-weight:700">📲</a>`:'';}; 
+const waBadge=(phone,msg)=>{const l=wa(phone,msg);return l?`<a href="${l}" target="_blank" onclick="event.stopPropagation()" style="color:#25d366;text-decoration:none;font-weight:700">📲</a>`:'';}; 
 const ROLES_LABEL={dev:'Desenvolvedor',admin:'Administrador',coadmin:'Gestora',editor:'Gerente',reader:'Leitor'};
 const ROLES_CSS={dev:'role-dev',admin:'role-admin',coadmin:'role-coadmin',editor:'role-editor',reader:'role-reader'};
 
@@ -2142,11 +2145,11 @@ function renderDashboard(){
   }
   document.getElementById('dash-alerts').innerHTML=al;
   document.getElementById('dash-stats').innerHTML=[
-    {l:"Hoje",v:todayApts.length,s:todayApts.filter(a=>a.status==='confirmed').length+' conf.',c:"#0ea5e9",i:"agenda"},
-    {l:"Recebido Hoje",v:fmt(todayPaid),s:fmt(todayPend)+' pendente',c:"#10b981",i:"finance"},
-    {l:"Pacientes",v:D.patients.length,s:"cadastrados",c:"#7c3aed",i:"patients"},
-    {l:"Alertas",v:lowSk.length+expSoon.length,s:"estoque",c:lowSk.length>0?"#e63946":"#10b981",i:"stock"},
-  ].map(s=>`<div class="card stat-card"><div class="stat-icon" style="background:${s.c}18;color:${s.c}">${ogIco(s.i,22)}</div><div><div style="font-size:20px;font-weight:800">${s.v}</div><div style="font-size:13px;font-weight:700;color:#334155">${s.l}</div><div style="font-size:11.5px;color:var(--t3)">${s.s}</div></div></div>`).join('');
+    {l:"Hoje",v:todayApts.length,s:todayApts.filter(a=>a.status==='confirmed').length+' conf.',c:"#0ea5e9",i:"agenda",p:"agenda"},
+    {l:"Recebido Hoje",v:fmt(todayPaid),s:fmt(todayPend)+' pendente',c:"#10b981",i:"finance",p:"finance"},
+    {l:"Pacientes",v:D.patients.length,s:"cadastrados",c:"#7c3aed",i:"patients",p:"patients"},
+    {l:"Alertas",v:lowSk.length+expSoon.length,s:"estoque",c:lowSk.length>0?"#e63946":"#10b981",i:"stock",p:"stock"},
+  ].map(s=>`<div class="card stat-card card-nav" onclick="go('${s.p}')"><div class="stat-icon" style="background:${s.c}18;color:${s.c}">${ogIco(s.i,22)}</div><div><div style="font-size:20px;font-weight:800">${s.v}</div><div style="font-size:13px;font-weight:700;color:#334155">${s.l}</div><div style="font-size:11.5px;color:var(--t3)">${s.s}</div></div></div>`).join('');
   document.getElementById('dash-today').innerHTML=!todayApts.length?'<div style="color:var(--t3);font-size:13px">Sem agendamentos hoje.</div>':
     todayApts.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>{
       const p=getPat(a.patientId),pr=getPro(a.professionalId),proc=getProc(a.procedureId),st={confirmed:{bg:"#dcfce7",c:"#16a34a",l:"Confirmado"},scheduled:{bg:"#dbeafe",c:"#2563eb",l:"Agendado"},completed:{bg:"#f3f4f6",c:"#6b7280",l:"Concluído"},cancelled:{bg:"#fee2e2",c:"#dc2626",l:"Cancelado"}}[a.status];
@@ -2205,8 +2208,8 @@ function renderDashConfirmPending(){
         </div>
       </div>
       <div style="display:flex;gap:5px;flex-shrink:0">
-        ${p.phone?`<button class="btn btn-sm btn-wa" onclick="sendAptReminderById(${a.id})" title="Enviar lembrete WhatsApp">📱</button>`:''}
-        <button class="btn btn-sm btn-p" onclick="confirmApt(${a.id})" title="Marcar como confirmado">✓</button>
+        ${p.phone?`<button class="btn btn-sm btn-wa" onclick="event.stopPropagation();sendAptReminderById(${a.id})" title="Enviar lembrete WhatsApp">📱</button>`:''}
+        <button class="btn btn-sm btn-p" onclick="event.stopPropagation();confirmApt(${a.id})" title="Marcar como confirmado">✓</button>
       </div>
     </div>`;
   }).join('');
