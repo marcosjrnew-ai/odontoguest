@@ -6606,6 +6606,19 @@ window._fbPendingKeys=new Set();
 // janela de risco de perda de dado (migração pré-Fase 2) sem o efeito colateral de reviver dado
 // já apagado de propósito depois.
 function _fbFirstSyncKey(key){return 'og3_fbFirstSyncDone_'+(window._fbActiveClinicId||'')+'_'+key;}
+// Segunda camada de proteção, independente da flag permanente acima: mesmo se a flag for
+// resetada (ex.: "limpar dados do app" no celular apaga o localStorage inteiro, inclusive a
+// flag), um registro local que é EXATAMENTE o dado de demonstração de fábrica (mesmo id, todos
+// os campos idênticos ao DEF) nunca é tratado como "dado real só local" — não faz sentido
+// promover dado de amostra pra dado compartilhado da clínica. Bug real encontrado em 30/08/2026
+// (ver CLAUDE.md, "falha de sincronismo"): "limpar dados" resetava a flag, e o próximo sync
+// tratado como "primeiro de verdade" reintroduzia pacientes/agendamentos de demonstração no
+// Firestore de produção, mesmo já tendo sido apagados de propósito antes.
+function _isDefSeedRecord(key,rec){
+  const seed=DEF[key];
+  if(!Array.isArray(seed))return false;
+  return seed.some(s=>JSON.stringify(s)===JSON.stringify(rec));
+}
 window._onFirestoreCollectionUpdate=function(key,data,cache){
   const doneBefore=window._fbFirstSync[key]||!!localStorage.getItem(_fbFirstSyncKey(key));
   const isFirst=!doneBefore;
@@ -6613,7 +6626,7 @@ window._onFirestoreCollectionUpdate=function(key,data,cache){
   if(isFirst)localStorage.setItem(_fbFirstSyncKey(key),'1');
   if(isFirst&&Array.isArray(data)&&cache instanceof Map){
     const remoteIds=new Set(cache.keys());
-    const localOnly=(D[key]||[]).filter(rec=>!remoteIds.has(fbDocIdFor(key,rec)));
+    const localOnly=(D[key]||[]).filter(rec=>!remoteIds.has(fbDocIdFor(key,rec))&&!_isDefSeedRecord(key,rec));
     if(localOnly.length){
       D[key]=[...data,...localOnly];
       window._remoteCache[key]=cache;
