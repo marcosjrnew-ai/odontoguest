@@ -2070,6 +2070,7 @@ function toggleTema(){
 }
 
 function go(page){
+  const prevPage=activePage;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
@@ -2079,16 +2080,33 @@ function go(page){
   const R={dashboard:renderDashboard,agenda:renderAgenda,patients:renderPatients,records:renderRecords,budgets:renderBudgets,prescriptions:renderPrescriptions,receipts:renderReceipts,returns:renderReturns,finance:renderFinance,otherpay:renderOtherPay,stock:renderStock,equipment:renderEquipment,shopping:renderShopping,suppliers:renderSuppliers,professionals:renderProfessionals,clinics:renderClinics,notifications:renderNotifications,reports:renderReports,advreports:renderAdvReports,messages:renderMessages,admin:renderAdmin,backup:renderBackup};
   R[page]?.();
   closeSidebarMobile();
+  if(_suppressPageHistory){_suppressPageHistory=false;}
+  else{
+    // Seeds a entrada de histórico que já existia (o carregamento da página, antes de qualquer
+    // go()) com a página que estava sendo mostrada até aqui — enterApp() renderiza o Dashboard
+    // direto, sem passar por go(), então a 1ª chamada de go() pode já ser uma navegação de
+    // verdade (ex. clicar em Agenda), não necessariamente pro Dashboard.
+    if(!_historyInited){history.replaceState({ogPage:prevPage},'');_historyInited=true;}
+    if(page!==prevPage){history.pushState({ogPage:page},'');}
+  }
 }
 // Botão/gesto "voltar" do celular (Android) não tinha nenhum estado de histórico pra consumir —
-// como o app nunca dá push em history, o primeiro "voltar" saía direto do PWA, mesmo com uma
-// modal aberta na tela. om() empilha um estado por modal aberta (permite modais aninhadas, ex.
-// o modal do dente aberto de dentro do modal de atendimento); cm() consome o estado
-// correspondente quando fecha por outro caminho (botão Fechar, salvar, clique fora); o handler
-// de popstate fecha a modal do topo quando quem consome o estado é o botão/gesto voltar de
-// verdade. _suppressPopstate evita processar duas vezes o mesmo fechamento (cm chama
-// history.back(), que dispara popstate de novo).
-let _modalStack=[],_suppressPopstate=false;
+// como o app nunca dava push em history, o primeiro "voltar" saía direto do PWA, mesmo com uma
+// modal aberta ou navegando entre páginas (Agenda, Estoque etc.) pela sidebar. om() empilha um
+// estado por modal aberta (permite modais aninhadas, ex. o modal do dente aberto de dentro do
+// modal de atendimento); go() também empilha um estado por navegação de página REAL (só quando
+// a página muda de fato — chamadas de refresh tipo go(activePage), usadas o tempo todo após
+// salvar/sincronizar, não empilham nada, senão o histórico ficaria poluído). cm() e o handler de
+// popstate consomem esses estados quando fecham por outro caminho (botão Fechar, clique fora,
+// gesto/botão voltar de verdade). _suppressPopstate evita processar duas vezes o mesmo
+// fechamento de modal (cm chama history.back(), que dispara popstate de novo);
+// _suppressPageHistory faz o mesmo pro lado de go() quando quem está chamando é o próprio
+// handler de popstate restaurando a página anterior (senão criaria um push novo em cima do
+// estado que acabou de ser consumido). _historyInited garante que a 1ª navegação da sessão
+// (dashboard, ao entrar) substitui (replaceState) a entrada inicial do carregamento da página
+// em vez de empilhar — é essa entrada de base que faz o voltar, já em Dashboard, sair do app
+// (comportamento nativo esperado de "tela inicial"), e não antes disso.
+let _modalStack=[],_suppressPopstate=false,_suppressPageHistory=false,_historyInited=false;
 function cm(n){
   document.getElementById('m-'+n).style.display='none';EID=null;
   if(n==='audit'){_patientAuditMode=false;_patientAuditData=[];}
@@ -2096,12 +2114,17 @@ function cm(n){
   if(idx!==-1){_modalStack.splice(idx,1);_suppressPopstate=true;history.back();}
 }
 function om(n){document.getElementById('m-'+n).style.display='flex';history.pushState({ogModal:n},'');_modalStack.push(n);}
-window.addEventListener('popstate',()=>{
+window.addEventListener('popstate',(e)=>{
   if(_suppressPopstate){_suppressPopstate=false;return;}
   if(_modalStack.length){
     const n=_modalStack.pop();
     const el=document.getElementById('m-'+n);if(el)el.style.display='none';
     EID=null;if(n==='audit'){_patientAuditMode=false;_patientAuditData=[];}
+    return;
+  }
+  if(e.state&&e.state.ogPage&&e.state.ogPage!==activePage){
+    _suppressPageHistory=true;
+    go(e.state.ogPage);
   }
 });
 
