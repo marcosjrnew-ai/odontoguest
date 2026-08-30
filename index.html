@@ -6299,9 +6299,24 @@ window._onFirestoreClinicDiscovered=function(clinicId){
   // não bata com o que o initMulticlinic() criou localmente neste navegador.
   activeClinicId=clinicId;
   setActiveClinicId(clinicId);
+  // Reenvia qualquer save() que tenha caído no meio do caminho (ver
+  // window._fbPendingKeys, na terceira camada de save() logo abaixo) — chamado
+  // depois de _fbActiveClinicId já estar setado, pra essas escritas não caírem
+  // de novo no early-return do pushToFirestore().
+  if(window._fbPendingKeys&&window._fbPendingKeys.size){
+    const pending=[...window._fbPendingKeys];
+    window._fbPendingKeys.clear();
+    pending.forEach(k=>pushToFirestore(k));
+  }
 };
 window._remoteCache={};
 window._fbFirstSync={};
+// Chaves que tentaram subir pro Firestore antes de _fbActiveClinicId existir
+// (login recém-feito, ainda esperando a leitura assíncrona de professionalIndex
+// terminar) — sem isso, save() feito nesse intervalo curto ficava só local pra
+// sempre, sem erro nenhum no console. Bug real encontrado em 29/08/2026 (ver
+// CLAUDE.md, "falha de sincronismo"). Drenada por window._onFirestoreClinicDiscovered.
+window._fbPendingKeys=new Set();
 // Reconciliação da 1ª sincronização de cada coleção, por sessão: se o Firestore
 // vier vazio (ou incompleto) mas esse aparelho já tinha registro local não
 // migrado (ex.: dado criado antes da Fase 2 existir), evita apagar esse dado
@@ -6339,7 +6354,7 @@ function fbDocIdFor(key,rec){
   return key==='professionals' ? String(rec.email||'').toLowerCase().trim() : String(rec.id);
 }
 function pushToFirestore(key){
-  if(!window._fbActiveClinicId||!window._fbSetDoc)return;
+  if(!window._fbActiveClinicId||!window._fbSetDoc){ window._fbPendingKeys.add(key); return; }
   const clinicId=window._fbActiveClinicId;
   if(FB_SINGLEDOC_KEYS.includes(key)){
     const data=D[key]||{};
