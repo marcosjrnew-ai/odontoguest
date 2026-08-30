@@ -290,8 +290,12 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 .tooth-num{font-size:7.5px;font-weight:700;color:#7fa8c9;margin-bottom:1px;font-variant-numeric:tabular-nums}
 .tooth-svg{width:22px;height:33px;transition:filter .15s}
 .tooth:hover .tooth-svg{filter:brightness(1.25)}
-.tooth-zone-editable polygon,.tooth-zone-editable rect[onclick]{transition:opacity .1s}
-.tooth-zone-editable polygon:hover,.tooth-zone-editable rect[onclick]:hover{opacity:.68;cursor:pointer}
+/* Hover de superfície: traço dobra de espessura em qualquer estado; preenchimento ciano
+   translúcido só em superfície ainda sem marcação (zone-empty) — uma já marcada mantém sua
+   cor de status visível no hover, só o traço reage, pra não esconder a informação. */
+.tooth-zone-editable polygon,.tooth-zone-editable rect[onclick]{transition:stroke-width .1s,fill .1s}
+.tooth-zone-editable polygon:hover,.tooth-zone-editable rect[onclick]:hover{stroke-width:.6;cursor:pointer}
+.tooth-zone-editable .zone-empty:hover{fill:rgba(75,192,200,.3)}
 .odonto-leg{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid #1e3350}
 .odonto-li{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:#8298b3}
 /* Modal do dente herda o mesmo painel escuro do odontograma */
@@ -305,6 +309,17 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 #m-tooth .btn-o:hover{border-color:#4fc3ff;color:#4fc3ff}
 .odonto-wrap .help-ico{background:rgba(79,195,255,.15);color:#8ed3ff}
 .odonto-wrap .help-ico:hover{background:rgba(79,195,255,.28)}
+/* Celular: 16 dentes por arcada não cabem espremidos numa tela estreita sem virar impossível
+   de tocar com precisão — em vez de encolher os dentes, deixa a arcada rolar de lado, com um
+   tamanho mínimo confortável de toque (a lista de superfícies do modal, abaixo, é a alternativa
+   pra quem preferir não mirar no dente pequeno de jeito nenhum). */
+@media(max-width:520px){
+  .odonto-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:16px 12px 14px}
+  .odonto-grp-half,.odonto-arch-half{min-width:230px}
+  .tooth{padding:5px 3px;min-width:26px}
+  .tooth-svg{width:26px;height:39px}
+  .tooth-num{font-size:8.5px}
+}
 .sk-bar-bg{height:5px;background:#f1f5f9;border-radius:3px;overflow:hidden;margin:8px 0}
 .sk-bar{height:100%;border-radius:3px;transition:width .4s}
 .alert-banner{border-radius:10px;padding:9px 13px;font-size:12.5px;display:flex;align-items:center;gap:8px;margin-bottom:9px}
@@ -1254,10 +1269,11 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   </div>
 </div></div>
 
-<div class="overlay" id="m-tooth" style="display:none" onclick="if(event.target===this)cm('tooth')"><div class="modal" onclick="event.stopPropagation()" style="max-width:340px">
+<div class="overlay" id="m-tooth" style="display:none" onclick="if(event.target===this)cm('tooth')"><div class="modal" onclick="event.stopPropagation()" style="max-width:340px;max-height:88vh;overflow-y:auto">
   <div class="modal-title" id="m-tooth-t">Dente</div>
-  <div style="font-size:11px;color:var(--t3);text-align:center;margin-bottom:10px">Clique numa superfície pra alternar: Pendente → Em Trat. → Concluído → limpo</div>
+  <div style="font-size:11px;color:var(--t3);text-align:center;margin-bottom:10px">Clique numa superfície (no dente ou na lista abaixo) pra alternar: Pendente → Em Trat. → Concluído → limpo</div>
   <div id="tooth-zones-wrap" style="display:flex;justify-content:center;margin-bottom:12px"></div>
+  <div id="tooth-surf-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
   <button id="tooth-extracted-btn" onclick="toggleToothExtracted()" style="width:100%;padding:9px;border-radius:10px;border:1.5px solid #7a2f36;background:rgba(248,113,113,.12);color:#f87171;font-weight:700;cursor:pointer;margin-bottom:8px">✕ Marcar como Extraído</button>
   <button onclick="clearTooth()" style="width:100%;padding:8px;border-radius:10px;border:1.5px solid #26466b;background:rgba(255,255,255,.03);color:#7f97b3;font-weight:700;cursor:pointer;margin-bottom:12px">⬜ Limpar Tudo</button>
   <div class="odonto-leg" style="margin-bottom:12px;border-top:none;padding-top:0;margin-top:0">
@@ -1265,7 +1281,16 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <div class="odonto-li"><div style="width:9px;height:9px;border-radius:2px;background:#38bdf8;box-shadow:0 0 6px #38bdf8aa"></div>Em Trat.</div>
     <div class="odonto-li"><div style="width:9px;height:9px;border-radius:2px;background:#34d399;box-shadow:0 0 6px #34d399aa"></div>Concluído</div>
   </div>
-  <div><label>Observação</label><input class="inp" id="tooth-obs" oninput="_updateToothObs()" placeholder="Ex: canal, coroa..."/></div>
+  <div style="margin-bottom:14px"><label>Observação Geral</label><input class="inp" id="tooth-obs" oninput="_updateToothObs()" placeholder="Ex: canal, coroa..."/></div>
+  <div style="margin-bottom:14px">
+    <label>Histórico do Tratamento (por superfície)</label>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <select id="tooth-log-surf" class="inp" style="flex:0 0 auto;width:112px"></select>
+      <input class="inp" id="tooth-log-text" placeholder="Ex: canal iniciado, restauração feita..." style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addToothLogEntry();}"/>
+      <button type="button" onclick="addToothLogEntry()" style="flex:0 0 auto;padding:0 12px;border-radius:8px;border:1.5px solid #26466b;background:rgba(79,195,255,.12);color:#8ed3ff;font-weight:700;cursor:pointer">+</button>
+    </div>
+    <div id="tooth-log-list"></div>
+  </div>
   <div class="modal-footer"><button class="btn btn-o" onclick="cm('tooth')">Fechar</button></div>
 </div></div>
 
@@ -2501,18 +2526,20 @@ function delPat(){
 }
 
 // ─── ODONTOGRAM (por superfície: Mesial/Distal/Vestibular/Lingual/Oclusal) ──
-const TN={11:"Inc.Cen",12:"Inc.Lat",13:"Canino",14:"Pré-M",15:"Pré-M",16:"1ºMol",17:"2ºMol",18:"Siso",21:"Inc.Cen",22:"Inc.Lat",23:"Canino",24:"Pré-M",25:"Pré-M",26:"1ºMol",27:"2ºMol",28:"Siso",31:"Inc.Cen",32:"Inc.Lat",33:"Canino",34:"Pré-M",35:"Pré-M",36:"1ºMol",37:"2ºMol",38:"Siso",41:"Inc.Cen",42:"Inc.Lat",43:"Canino",44:"Pré-M",45:"Pré-M",46:"1ºMol",47:"2ºMol",48:"Siso"};
+const TN_BY_M={1:"Incisivo Central",2:"Incisivo Lateral",3:"Canino",4:"1º Pré-molar",5:"2º Pré-molar",6:"1º Molar",7:"2º Molar",8:"3º Molar (Siso)"};
+const TN={};
+[11,12,13,14,15,16,17,18,21,22,23,24,25,26,27,28,31,32,33,34,35,36,37,38,41,42,43,44,45,46,47,48].forEach(n=>{TN[n]=TN_BY_M[+String(n).slice(1)];});
 const TC={done:"#34d399",pending:"#fbbf24",treatment:"#38bdf8"};
 const ZONE_CYCLE=['','pending','treatment','done'];
 const UL=[18,17,16,15,14,13,12,11],UR=[21,22,23,24,25,26,27,28],LL=[48,47,46,45,44,43,42,41],LR=[31,32,33,34,35,36,37,38];
 // Dado antigo (um status só por dente inteiro) continua funcionando: normalizado na leitura,
 // pinta as 5 superfícies com a mesma cor que já tinha. Nunca precisou de migração no storage.
 function _normTooth(entry){
-  if(!entry)return{surfaces:{},extracted:false,obs:''};
-  if(entry.surfaces||entry.extracted!==undefined)return{surfaces:entry.surfaces||{},extracted:!!entry.extracted,obs:entry.obs||''};
-  if(entry.status==='extracted')return{surfaces:{},extracted:true,obs:entry.obs||''};
-  if(entry.status)return{surfaces:{M:entry.status,D:entry.status,V:entry.status,L:entry.status,O:entry.status},extracted:false,obs:entry.obs||''};
-  return{surfaces:{},extracted:false,obs:entry.obs||''};
+  if(!entry)return{surfaces:{},extracted:false,obs:'',log:[]};
+  if(entry.surfaces||entry.extracted!==undefined)return{surfaces:entry.surfaces||{},extracted:!!entry.extracted,obs:entry.obs||'',log:Array.isArray(entry.log)?entry.log:[]};
+  if(entry.status==='extracted')return{surfaces:{},extracted:true,obs:entry.obs||'',log:Array.isArray(entry.log)?entry.log:[]};
+  if(entry.status)return{surfaces:{M:entry.status,D:entry.status,V:entry.status,L:entry.status,O:entry.status},extracted:false,obs:entry.obs||'',log:Array.isArray(entry.log)?entry.log:[]};
+  return{surfaces:{},extracted:false,obs:entry.obs||'',log:Array.isArray(entry.log)?entry.log:[]};
 }
 // Anatomia por tipo E arcada — um único contorno contínuo por dente (coroa cuspidada + raiz),
 // seguindo a referência: molar superior com 3 raízes (trifurcado), molar inferior com 2, pré-molar
@@ -2528,6 +2555,18 @@ const TOOTH_SHAPE={
   incisorU:'M6.5,7 Q6.5,2 9,1.3 L15,1.3 Q17.5,2 17.5,7 Q16.5,11 15,13.5 Q14,18 13,23 Q12.4,26 12,28 Q11.6,26 11,23 Q10,18 9,13.5 Q7.5,11 6.5,7 Z',
   incisorL:'M7.5,7 Q7.5,2.5 9.5,1.8 L14.5,1.8 Q16.5,2.5 16.5,7 Q15.7,10.5 14.3,12.5 Q13.5,17 12.8,21.5 Q12.3,24.5 12,26 Q11.7,24.5 11.2,21.5 Q10.5,17 9.7,12.5 Q8.3,10.5 7.5,7 Z'
 };
+// Linhas de sulco radicular (1 por raiz, seguindo o eixo de cada uma nos paths acima) —
+// simulam a depressão longitudinal do cemento, e reforçam visualmente a bi/trifurcação.
+const ROOT_LINES={
+  molarU:['M17,13 Q17.6,19 16,25','M12.5,17 Q12.2,20.5 12,24','M7,13 Q6.4,19 8,25'],
+  molarL:['M16.8,14 Q17.3,20 16.3,26.5','M9.2,14 Q8.7,20 9.7,26.5'],
+  premolarU:['M15.3,14.5 Q15,19 14.6,23.5','M8.7,14.5 Q9,19 9.4,23.5'],
+  premolarL:['M12,14.5 Q11.6,20 12,25.5'],
+  canineU:['M12,14 Q12.6,23 12,32'],
+  canineL:['M12,13.5 Q12.5,21 12,29'],
+  incisorU:['M12,14 Q12.4,20 12,27'],
+  incisorL:['M12,13 Q12.3,19 12,25']
+};
 const STATUS_PRIORITY=['done','treatment','pending'];
 function _toothKey(n){
   const m=+String(n).slice(1),upper=Math.floor(n/10)<=2;
@@ -2535,14 +2574,17 @@ function _toothKey(n){
   return type+(upper?'U':'L');
 }
 function toothZonesSVG(n,zones,extracted,editable){
-  const key=_toothKey(n),m=+String(n).slice(1),oLbl=m<=3?'I':'O',sizeAttr=editable?' style="width:120px;height:170px"':'';
+  const key=_toothKey(n),m=+String(n).slice(1),isMolarPremolar=m>=4,isAnterior=m<=2,is4Zone=m<=3,oLbl=m<=3?'I':'O',sizeAttr=editable?' style="width:120px;height:170px"':'';
   const tooth=TOOTH_SHAPE[key],cid='tc'+n+(editable?'b':'s'),gid='tg'+n+(editable?'b':'s');
   const activeStatus=zones?STATUS_PRIORITY.find(s=>Object.values(zones).includes(s)):null;
-  const glowColor=activeStatus?TC[activeStatus]:'#4fc3ff';
-  const glowOp=activeStatus?(editable?.9:.65):(editable?.35:.18);
+  const glowColor=activeStatus?TC[activeStatus]:'#e8dcc0';
+  const glowOp=activeStatus?(editable?.9:.65):(editable?.28:.14);
   const defs=`<defs>
     <clipPath id="${cid}"><path d="${tooth}"/></clipPath>
-    <linearGradient id="${gid}base" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eaf8ff"/><stop offset=".35" stop-color="#8fd4f7"/><stop offset=".65" stop-color="#4fa8dd"/><stop offset="1" stop-color="#1f5f92"/></linearGradient>
+    <linearGradient id="${gid}base" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fffdf8"/><stop offset=".32" stop-color="#f6eeda"/><stop offset=".62" stop-color="#e3d3ac"/><stop offset="1" stop-color="#b9a274"/></linearGradient>
+    <radialGradient id="${gid}spec" cx="33%" cy="14%" r="45%"><stop offset="0" stop-color="#ffffff" stop-opacity=".9"/><stop offset=".45" stop-color="#ffffff" stop-opacity=".22"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="${gid}rootsh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2011" stop-opacity="0"/><stop offset=".38" stop-color="#2b2011" stop-opacity="0"/><stop offset=".62" stop-color="#2b2011" stop-opacity=".22"/><stop offset="1" stop-color="#170f07" stop-opacity=".52"/></linearGradient>
+    <linearGradient id="${gid}incisal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a9c3d6" stop-opacity=".55"/><stop offset=".55" stop-color="#a9c3d6" stop-opacity=".12"/><stop offset="1" stop-color="#a9c3d6" stop-opacity="0"/></linearGradient>
     <filter id="${gid}glow" x="-90%" y="-90%" width="280%" height="280%"><feGaussianBlur stdDeviation="${editable?1.8:1}"/></filter>
   </defs>`;
   if(extracted)return`<svg class="tooth-svg" viewBox="0 0 24 34"${sizeAttr}>${defs}
@@ -2554,20 +2596,42 @@ function toothZonesSVG(n,zones,extracted,editable){
   const click=k=>editable?` onclick="event.stopPropagation();cycleZone('${k}')"`:'';
   const lbl=(x,y,t)=>editable?`<text x="${x}" y="${y}" font-size="2.6" fill="#0d3854" text-anchor="middle" pointer-events="none" font-weight="700" opacity=".8">${t}</text>`:'';
   const zoneFill=k=>col(k)?`fill="${col(k)}"`:`fill="url(#${gid}base)"`;
-  const div=' stroke="#ffffff" stroke-width="0.3" stroke-opacity=".5"';
+  const zoneCls=k=>editable&&!col(k)?' class="zone-empty"':'';
+  const div=' stroke="#4bc0c8" stroke-width="0.28" stroke-opacity=".8"';
+  // Sulcos radiculares (textura de cemento — tom quente, não mais azul-hologram) e, em
+  // molar/pré-molar, fissura oclusal ramificada; em incisivo, 3 lóbulos de desenvolvimento
+  // (ondulações verticais sutis na face vestibular). pointer-events:none em tudo isso pra não
+  // atrapalhar o clique nas zonas por baixo.
+  const rootLines=(ROOT_LINES[key]||[]).map(d=>`<path d="${d}" fill="none" stroke="#4a3c22" stroke-width="0.4" stroke-linecap="round" opacity=".4" pointer-events="none"/>`).join('');
+  const occlusalGroove=isMolarPremolar?`<path d="M8.6,8 Q10,7.2 10.6,7.7 Q12,8.6 13.4,7.7 Q14,7.2 15.4,8 M12,7.3 L12,9.7 M10.4,9.3 Q12,10 13.6,9.3" fill="none" stroke="#4a3c22" stroke-width="0.32" stroke-linecap="round" opacity=".4" pointer-events="none"/>`:'';
+  const incisorLobes=isAnterior?`<path d="M9,3 Q8.6,7 9,10.5 M12,2.3 Q11.7,7 12,11.5 M15,3 Q15.4,7 15,10.5" fill="none" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity=".28" pointer-events="none"/>
+    <path d="M8,2.6 Q12,2.1 16,2.6 M7.5,4.6 Q12,4 16.5,4.6" fill="none" stroke="#ffffff" stroke-width="0.18" opacity=".14" pointer-events="none"/>`:'';
+  // Translucidez incisal: só na ponta de corte dos incisivos (halo acinzentado-azulado),
+  // não faz sentido em molar/canino/pré-molar (borda oclusal/cúspide não é fina o bastante
+  // pra "passar luz" visualmente nesse traço).
+  const incisalTint=isAnterior?`<path d="${tooth}" fill="url(#${gid}incisal)" pointer-events="none"/>`:'';
   return`<svg class="tooth-svg${editable?' tooth-zone-editable':''}" viewBox="0 0 24 34"${sizeAttr}>${defs}
     <path d="${tooth}" fill="${glowColor}" opacity="${glowOp}" filter="url(#${gid}glow)"/>
     <path d="${tooth}" fill="url(#${gid}base)"/>
     <g clip-path="url(#${cid})">
-      <polygon points="6,4.5 18,4.5 14,7 10,7" ${zoneFill('V')}${div}${click('V')}/>
-      <polygon points="18,4.5 18,12 14,10 14,7" ${zoneFill('D')}${div}${click('D')}/>
-      <polygon points="18,12 6,12 10,10 14,10" ${zoneFill('L')}${div}${click('L')}/>
-      <polygon points="6,12 6,4.5 10,7 10,10" ${zoneFill('M')}${div}${click('M')}/>
-      <rect x="10" y="7" width="4" height="3" ${zoneFill('O')}${div}${click('O')}/>
-      <path d="M6.5,2.5 Q5,10 7,15" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" opacity=".3"/>
+      ${is4Zone?`<polygon points="6,4.5 18,4.5 12,8.25" ${zoneFill('V')}${div}${click('V')}${zoneCls('V')}/>
+      <polygon points="18,4.5 18,12 12,8.25" ${zoneFill('D')}${div}${click('D')}${zoneCls('D')}/>
+      <polygon points="18,12 6,12 12,8.25" ${zoneFill('L')}${div}${click('L')}${zoneCls('L')}/>
+      <polygon points="6,12 6,4.5 12,8.25" ${zoneFill('M')}${div}${click('M')}${zoneCls('M')}/>`:`<polygon points="6,4.5 18,4.5 14,7 10,7" ${zoneFill('V')}${div}${click('V')}${zoneCls('V')}/>
+      <polygon points="18,4.5 18,12 14,10 14,7" ${zoneFill('D')}${div}${click('D')}${zoneCls('D')}/>
+      <polygon points="18,12 6,12 10,10 14,10" ${zoneFill('L')}${div}${click('L')}${zoneCls('L')}/>
+      <polygon points="6,12 6,4.5 10,7 10,10" ${zoneFill('M')}${div}${click('M')}${zoneCls('M')}/>
+      <rect x="10" y="7" width="4" height="3" ${zoneFill('O')}${div}${click('O')}${zoneCls('O')}/>`}
+      ${occlusalGroove}
+      ${incisorLobes}
+      <path d="${tooth}" fill="url(#${gid}rootsh)" pointer-events="none"/>
+      ${rootLines}
+      ${incisalTint}
+      <path d="${tooth}" fill="url(#${gid}spec)" pointer-events="none"/>
+      <path d="M6.5,2.5 Q5,10 7,15" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" opacity=".25" pointer-events="none"/>
     </g>
-    ${lbl(12,6.1,'V')}${lbl(16.4,9.3,'D')}${lbl(12,11.4,'L')}${lbl(7.6,9.3,'M')}${lbl(12,9.6,oLbl)}
-    <path d="${tooth}" fill="none" stroke="#eaf8ff" stroke-width="0.6" opacity=".95"/>
+    ${is4Zone?`${lbl(12,5.9,'V')}${lbl(16,8.6,'D')}${lbl(12,10.9,'L')}${lbl(8,8.6,'M')}`:`${lbl(12,6.1,'V')}${lbl(16.4,9.3,'D')}${lbl(12,11.4,'L')}${lbl(7.6,9.3,'M')}${lbl(12,9.6,oLbl)}`}
+    <path d="${tooth}" fill="none" stroke="#4bc0c8" stroke-width="0.55" opacity=".9"/>
   </svg>`;
 }
 function _odontoGroupRow(topBorder){
@@ -2589,6 +2653,9 @@ function buildOdonto(cid,odo){
     ${_odontoGroupRow(true)}
     <div class="odonto-leg"><div class="odonto-li"><div style="width:9px;height:9px;border-radius:2px;background:#34d399;box-shadow:0 0 6px #34d399aa"></div>Concluído</div><div class="odonto-li"><div style="width:9px;height:9px;border-radius:2px;background:#fbbf24;box-shadow:0 0 6px #fbbf24aa"></div>Pendente</div><div class="odonto-li"><div style="width:9px;height:9px;border-radius:2px;background:#38bdf8;box-shadow:0 0 6px #38bdf8aa"></div>Em Trat.</div><div class="odonto-li"><span style="color:#f87171;font-weight:900">✕</span>Extraído</div><div class="odonto-li" style="color:#4a6584">M/D/V/L/O = superfícies</div></div>`;}
 let _activeTooth=null,_activeOdonto=null;
+const SURF_NAME={V:'Vestibular',D:'Distal',M:'Mesial',L:'Lingual'};
+const SURF_STATUS_LABEL={pending:'Pendente',treatment:'Em Tratamento',done:'Concluído'};
+function _oclusalName(n){return(+String(n).slice(1))<=3?'Incisal':'Oclusal';}
 function openToothModal(n,cid){_activeTooth=n;_activeOdonto=cid;document.getElementById('m-tooth-t').textContent=`Dente ${n} — ${TN[n]||''}`;document.getElementById('tooth-obs').value=_normTooth(currentOdonto[n]).obs;renderToothZonesEditor();om('tooth');}
 function renderToothZonesEditor(){
   const t=_normTooth(currentOdonto[_activeTooth]);
@@ -2596,26 +2663,88 @@ function renderToothZonesEditor(){
   const btn=document.getElementById('tooth-extracted-btn');
   btn.style.background=t.extracted?'#7a2f36':'rgba(248,113,113,.12)';btn.style.color=t.extracted?'#fecaca':'#f87171';
   btn.textContent=t.extracted?'✕ Extraído (clique pra desfazer)':'✕ Marcar como Extraído';
+  renderToothSurfaceList(t);
+  renderToothLog(t);
+}
+// Lista de superfícies em formato de botão/card — alternativa ao clique preciso no desenho,
+// pensada pro uso no celular (mesmo alvo de toque de ~40px, sem depender de acertar um polígono
+// de poucos pixels na tela). Faz exatamente a mesma ação que clicar na superfície no dente.
+function renderToothSurfaceList(t){
+  const wrap=document.getElementById('tooth-surf-list');if(!wrap)return;
+  if(t.extracted){wrap.innerHTML='';return;}
+  // Incisivo e canino não têm face oclusal própria (a borda de corte não é uma superfície
+  // separada como no molar/pré-molar) — só 4 faces, igual ao desenho do dente.
+  const keys=(+String(_activeTooth).slice(1))<=3?['V','D','L','M']:['V','D','L','M','O'];
+  wrap.innerHTML=keys.map(k=>{
+    const name=k==='O'?_oclusalName(_activeTooth):SURF_NAME[k];
+    const st=t.surfaces[k]||'';
+    const color=st?TC[st]:'#3a5170';
+    const label=st?SURF_STATUS_LABEL[st]:'—';
+    return`<button type="button" onclick="cycleZone('${k}')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:9px 12px;border-radius:9px;border:1.5px solid ${st?color:'#26466b'};background:${st?color+'22':'rgba(255,255,255,.03)'};color:#dce8f5;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;text-align:left">
+      <span>${name}</span>
+      <span style="display:flex;align-items:center;gap:6px;color:${st?color:'#5b7fa6'};font-weight:700">${label}<span style="width:9px;height:9px;border-radius:50%;background:${color};box-shadow:${st?'0 0 6px '+color+'aa':'none'}"></span></span>
+    </button>`;
+  }).join('');
+}
+// Histórico cronológico de observações por superfície — soma-se à Observação Geral (que
+// continua existindo, sem migração), não a substitui. Sempre um novo registro, nunca edita um
+// já existente — é um log de acompanhamento do tratamento, não um campo de texto único.
+function renderToothLog(t){
+  const wrap=document.getElementById('tooth-log-list');if(!wrap)return;
+  const sel=document.getElementById('tooth-log-surf');
+  if(sel){
+    const prev=sel.value;
+    const surfKeys=(+String(_activeTooth).slice(1))<=3?['V','D','L','M']:['V','D','L','M','O'];
+    sel.innerHTML='<option value="geral">Geral (dente todo)</option>'+surfKeys.map(k=>`<option value="${k}">${k==='O'?_oclusalName(_activeTooth):SURF_NAME[k]}</option>`).join('');
+    if([...sel.options].some(o=>o.value===prev))sel.value=prev;
+  }
+  if(!t.log.length){wrap.innerHTML='<div style="font-size:11.5px;color:#4a6584;text-align:center;padding:6px 0">Nenhum registro ainda.</div>';return;}
+  const bySurf=k=>k==='geral'?'Geral':(k==='O'?_oclusalName(_activeTooth):(SURF_NAME[k]||k));
+  wrap.innerHTML=[...t.log].reverse().map(e=>`<div style="padding:7px 10px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid #1e3350;margin-bottom:6px">
+    <div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;color:#5b7fa6;font-weight:700;margin-bottom:2px"><span>${bySurf(e.surface)}</span><span>${new Date(e.ts).toLocaleDateString('pt-BR')}</span></div>
+    <div style="font-size:12px;color:#dce8f5;line-height:1.4">${e.text}</div>
+  </div>`).join('');
+}
+function addToothLogEntry(){
+  if(!_activeTooth)return;
+  const sel=document.getElementById('tooth-log-surf'),input=document.getElementById('tooth-log-text');
+  const text=(input.value||'').trim();if(!text)return;
+  const t=_normTooth(currentOdonto[_activeTooth]);
+  const entry={ts:Date.now(),surface:sel.value,text};
+  input.value='';
+  _commitTooth({surfaces:t.surfaces,extracted:t.extracted,obs:t.obs,log:[...t.log,entry]});
 }
 function _commitTooth(entry){
-  const hasAny=entry.extracted||Object.values(entry.surfaces||{}).some(Boolean)||entry.obs;
+  const hasAny=entry.extracted||Object.values(entry.surfaces||{}).some(Boolean)||entry.obs||(entry.log&&entry.log.length);
   if(hasAny)currentOdonto[_activeTooth]=entry;else delete currentOdonto[_activeTooth];
   renderToothZonesEditor();buildOdonto(_activeOdonto||'v-odonto',currentOdonto);
 }
 function cycleZone(k){
   if(!_activeTooth)return;const t=_normTooth(currentOdonto[_activeTooth]);if(t.extracted)return;
   const next=ZONE_CYCLE[(ZONE_CYCLE.indexOf(t.surfaces[k]||'')+1)%ZONE_CYCLE.length];
-  _commitTooth({surfaces:{...t.surfaces,[k]:next},extracted:false,obs:document.getElementById('tooth-obs').value});
+  _commitTooth({surfaces:{...t.surfaces,[k]:next},extracted:false,obs:document.getElementById('tooth-obs').value,log:t.log});
 }
 function toggleToothExtracted(){
   if(!_activeTooth)return;const t=_normTooth(currentOdonto[_activeTooth]);
-  _commitTooth({surfaces:t.extracted?t.surfaces:{},extracted:!t.extracted,obs:document.getElementById('tooth-obs').value});
+  _commitTooth({surfaces:t.extracted?t.surfaces:{},extracted:!t.extracted,obs:document.getElementById('tooth-obs').value,log:t.log});
 }
 function _updateToothObs(){
   if(!_activeTooth)return;const t=_normTooth(currentOdonto[_activeTooth]);
-  _commitTooth({surfaces:t.surfaces,extracted:t.extracted,obs:document.getElementById('tooth-obs').value});
+  _commitTooth({surfaces:t.surfaces,extracted:t.extracted,obs:document.getElementById('tooth-obs').value,log:t.log});
 }
-function clearTooth(){if(!_activeTooth)return;delete currentOdonto[_activeTooth];document.getElementById('tooth-obs').value='';renderToothZonesEditor();buildOdonto(_activeOdonto||'v-odonto',currentOdonto);}
+// Duplo-check de propósito: "Limpar Tudo" apaga marcação de superfície, extração, observação
+// geral E todo o histórico cronológico do dente de uma vez, sem chance de desfazer — pedido
+// explícito do usuário depois de um susto real de sincronização (ver CLAUDE.md).
+function clearTooth(){
+  if(!_activeTooth)return;
+  const t=_normTooth(currentOdonto[_activeTooth]);
+  const hasAny=t.extracted||Object.values(t.surfaces).some(Boolean)||t.obs||t.log.length;
+  if(hasAny && !confirm(`Limpar TUDO do dente ${_activeTooth} (${TN[_activeTooth]||''})?\n\nIsso apaga marcações de superfície, extração, observação geral e todo o histórico (${t.log.length} registro${t.log.length===1?'':'s'}). Não pode ser desfeito.`))return;
+  delete currentOdonto[_activeTooth];
+  document.getElementById('tooth-obs').value='';
+  const logInput=document.getElementById('tooth-log-text');if(logInput)logInput.value='';
+  renderToothZonesEditor();buildOdonto(_activeOdonto||'v-odonto',currentOdonto);
+}
 
 // ─── RECORDS (unified) ─────────────────────────────────────
 function fillRecFilter(){const f=document.getElementById('rec-filter');if(!f)return;const prev=f.value;const q=(document.getElementById('rec-search')?.value||'').toLowerCase().trim();const qd=q.replace(/\D/g,'');const fil=D.patients.filter(p=>{if(!q)return true;const txt=((p.name||'')+' '+(p.social||'')+' '+(p.cpf||'')).toLowerCase();if(txt.includes(q))return true;if(qd && (p.cpf||'').replace(/\D/g,'').includes(qd))return true;return false;});f.innerHTML='<option value="">Selecione um paciente</option>'+fil.map(p=>`<option value="${p.id}">${patDisp(p.id)||p.name}${p.cpf?' — '+p.cpf:''}</option>`).join('');if(prev&&fil.find(p=>p.id==prev))f.value=prev;}
