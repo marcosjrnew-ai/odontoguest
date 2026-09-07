@@ -53,7 +53,7 @@ window._fbSignOut = async function(){
 // As 10 coleções em array e as 2 em documento único (config/messages) que já
 // eram compartilhadas por clínica no localStorage (ver migrateDataToClinic no
 // script principal) — precisa ficar em sincronia com essa mesma lista.
-const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts'];
+const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts'];
 const SINGLEDOC_COLS = ['config','messages'];
 
 window._applyingRemote = false;
@@ -746,6 +746,9 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div class="row-flex"><div><div class="s-title">Estoque</div><div class="s-sub" id="sk-total"></div></div>
   <div class="actions no-print">
     <input class="inp" id="sk-search" placeholder="Buscar insumo ou categoria..." style="width:220px" oninput="renderStock()"/>
+    <select class="inp" id="sk-location-filter" style="width:150px" onchange="renderStock()">
+      <option value="">Todas as localizações</option><option value="Consultório">Consultório</option><option value="Estoque">Estoque</option>
+    </select>
     <button class="btn btn-p" onclick="openSk()" id="btn-new-sk">+ Novo Item</button>
     <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button>
   </div></div>
@@ -755,6 +758,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
       <th style="cursor:pointer" onclick="sortSk('category')">Categoria <span id="sk-sort-category"></span></th>
       <th style="cursor:pointer" onclick="sortSk('qty')">Quantidade <span id="sk-sort-qty"></span></th>
       <th style="cursor:pointer" onclick="sortSk('exp')">Validade <span id="sk-sort-exp"></span></th>
+      <th>Localização</th>
       <th>Fornecedor</th><th>Custo Total</th><th></th>
     </tr></thead><tbody id="sk-body"></tbody></table>
   </div>
@@ -763,20 +767,39 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 <!-- EQUIPMENT -->
 <div id="page-equipment" class="page">
   <div class="row-flex"><div><div class="s-title">Instrumental</div><div class="s-sub" id="eq-total">Instrumental próprio dos profissionais</div></div>
-  <div class="actions no-print">
-    <input class="inp" id="eq-search" placeholder="Buscar por nome, categoria ou código..." style="width:220px" oninput="renderEquipment()"/>
-    <button class="btn btn-p" onclick="openEq()" id="btn-new-eq">+ Novo Instrumental</button>
-    <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button>
+  <div class="agenda-view-tabs no-print">
+    <button class="tab-btn active" id="eqtab-list" onclick="setEqTab('list')">Instrumental</button>
+    <button class="tab-btn" id="eqtab-kits" onclick="setEqTab('kits')">Kits</button>
   </div></div>
-  <div class="card" style="padding:0;overflow-x:auto">
-    <table class="tbl"><thead><tr>
-      <th style="cursor:pointer" onclick="sortEq('name')">Nome <span id="eq-sort-name"></span></th>
-      <th style="cursor:pointer" onclick="sortEq('category')">Categoria <span id="eq-sort-category"></span></th>
-      <th style="cursor:pointer" onclick="sortEq('qty')">Quantidade <span id="eq-sort-qty"></span></th>
-      <th>Estado</th>
-      <th style="cursor:pointer" onclick="sortEq('acquisitionDate')">Aquisição <span id="eq-sort-acquisitionDate"></span></th>
-      <th>Dono</th><th>Valor Total</th><th></th>
-    </tr></thead><tbody id="eq-body"></tbody></table>
+  <div id="eq-view-list">
+    <div class="actions no-print" style="margin-bottom:10px">
+      <input class="inp" id="eq-search" placeholder="Buscar por nome, categoria ou código..." style="width:220px" oninput="renderEquipment()"/>
+      <select class="inp" id="eq-kit-filter" style="width:170px" onchange="renderEquipment()">
+        <option value="">Todos os kits</option><option value="avulso">Avulso</option>
+      </select>
+      <select class="inp" id="eq-location-filter" style="width:150px" onchange="renderEquipment()">
+        <option value="">Todas as localizações</option><option value="Consultório">Consultório</option><option value="Estoque">Estoque</option>
+      </select>
+      <button class="btn btn-p" onclick="openEq()" id="btn-new-eq">+ Novo Instrumental</button>
+      <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button>
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table class="tbl"><thead><tr>
+        <th style="cursor:pointer" onclick="sortEq('name')">Nome <span id="eq-sort-name"></span></th>
+        <th style="cursor:pointer" onclick="sortEq('category')">Categoria <span id="eq-sort-category"></span></th>
+        <th style="cursor:pointer" onclick="sortEq('qty')">Quantidade <span id="eq-sort-qty"></span></th>
+        <th>Estado</th>
+        <th>Kit</th><th>Localização</th>
+        <th style="cursor:pointer" onclick="sortEq('acquisitionDate')">Aquisição <span id="eq-sort-acquisitionDate"></span></th>
+        <th>Dono</th><th>Valor Total</th><th></th>
+      </tr></thead><tbody id="eq-body"></tbody></table>
+    </div>
+  </div>
+  <div id="eq-view-kits" style="display:none">
+    <div class="actions no-print" style="margin-bottom:10px">
+      <button class="btn btn-p" onclick="openKit()" id="btn-new-kit">+ Novo Kit</button>
+    </div>
+    <div id="kits-list"></div>
   </div>
 </div>
 
@@ -1452,6 +1475,9 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
       <div><label>Qtd Atual</label><input type="number" class="inp" id="sk-qty" min="0"/></div>
       <div><label>Qtd Mínima</label><input type="number" class="inp" id="sk-minqty" min="0"/></div>
       <div><label>Validade</label><input type="date" class="inp" id="sk-exp"/></div>
+      <div><label>Localização</label><select class="inp" id="sk-location">
+        <option value="Consultório">Consultório</option><option value="Estoque">Estoque</option>
+      </select></div>
     </div>
   </div>
   <div class="modal-footer">
@@ -1484,6 +1510,12 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
       <div><label>Valor Unit. (R$)</label><input type="number" class="inp" id="eq-value" min="0" step="0.01"/></div>
       <div><label>Data de Aquisição</label><input type="date" class="inp" id="eq-acq"/></div>
     </div>
+    <div class="g2" style="gap:9px">
+      <div><label>Kit</label><select class="inp" id="eq-kit" onchange="updateEqLocationSuggestion()"><option value="0">Nenhum (avulso)</option></select></div>
+      <div><label>Localização</label><select class="inp" id="eq-location">
+        <option value="Consultório">Consultório</option><option value="Estoque">Estoque</option>
+      </select></div>
+    </div>
     <div><label>Dono (profissional)</label><select class="inp" id="eq-pro"></select></div>
     <div><label>Observações</label><textarea class="inp" id="eq-notes" rows="2"></textarea></div>
   </div>
@@ -1491,6 +1523,33 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
     <button class="btn btn-r btn-sm" id="eq-del" style="display:none" onclick="delEq()">Excluir</button>
     <button class="btn btn-o" onclick="cm('eq')">Cancelar</button>
     <button class="btn btn-p" onclick="saveEq()">Salvar</button>
+  </div>
+</div></div>
+
+<div class="overlay" id="m-kit" style="display:none" onclick="if(event.target===this)cm('kit')"><div class="modal" onclick="event.stopPropagation()" style="max-width:440px">
+  <div class="modal-title" id="m-kit-t">Kit</div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div><label>Nome do Kit</label><input class="inp" id="kit-name" placeholder="Ex: Kit Extração"/></div>
+    <div class="g2" style="gap:9px">
+      <div><label>Categoria/Procedimento</label><input class="inp" id="kit-cat" placeholder="Ex: Cirurgia"/></div>
+      <div><label>Profissional (dono)</label><select class="inp" id="kit-pro"><option value="">Nenhum</option></select></div>
+    </div>
+    <div><label>Observações</label><textarea class="inp" id="kit-notes" rows="2"></textarea></div>
+    <div style="font-size:11.5px;color:var(--t3)">Os itens do kit são definidos cadastrando/editando o Instrumental e escolhendo este Kit no campo "Kit".</div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-r btn-sm" id="kit-del" style="display:none" onclick="delKit()">Excluir</button>
+    <button class="btn btn-o" onclick="cm('kit')">Cancelar</button>
+    <button class="btn btn-p" onclick="saveKit()">Salvar</button>
+  </div>
+</div></div>
+
+<div class="overlay" id="m-kit-check" style="display:none" onclick="if(event.target===this)cm('kit-check')"><div class="modal modal-lg" onclick="event.stopPropagation()">
+  <div class="modal-title" id="m-kit-check-t">Conferir Kit</div>
+  <div id="kit-check-body" style="display:flex;flex-direction:column;gap:8px"></div>
+  <div class="modal-footer">
+    <button class="btn btn-o" onclick="cm('kit-check')">Cancelar</button>
+    <button class="btn btn-p" onclick="saveKitCheck()">Registrar Conferência</button>
   </div>
 </div></div>
 
@@ -1683,6 +1742,7 @@ stock:[
 ],
 otherPayments:[],
 equipment:[],
+kits:[],
 suppliers:[],
 prescriptions:[],
 receipts:[],
@@ -1715,6 +1775,7 @@ const getPat=id=>D.patients.find(p=>p.id===+id)||{name:"—",phone:""};
 const getPro=id=>D.professionals.find(p=>p.id===+id)||{dispName:"—",color:"#ccc",phone:""};
 const getSk=id=>D.stock.find(s=>s.id===+id)||{cost:0,name:""};
 const getSup=id=>D.suppliers.find(s=>s.id===+id)||{name:"—"};
+const getKit=id=>D.kits.find(k=>k.id===+id)||{name:"—"};
 const patDisp=id=>{const p=getPat(id);return p.social||p.name;};
 const PATIENT_SOURCE_LABELS={indicacao:'Indicação de amigo/paciente',google:'Google / Pesquisa Online',instagram:'Instagram / Redes Sociais',gmn:'Google Meu Negócio / Avaliações',placa:'Placa / Fachada do consultório',convenio:'Convênio',retorno:'Já era paciente / Retorno',outro:'Outro'};
 const waBadge=(phone,msg)=>{const l=wa(phone,msg);return l?`<a href="${l}" target="_blank" onclick="event.stopPropagation()" style="color:#25d366;text-decoration:none;font-weight:700">📲</a>`:'';}; 
@@ -2166,12 +2227,18 @@ function renderDashboard(){
     }).join(' · ');
     al+=`<div class="alert-banner" style="background:#fee2e2;border:1.5px solid #fca5a5;color:#991b1b">📉 <b>${rentLosses.length} dia(s) com prejuízo</b> <button type="button" class="help-ico" onclick="event.stopPropagation();openHelp('rentLoss',this)">?</button> — aluguel maior que o ganho com pacientes (total ${fmt(totalLoss)}): ${detail}${rentLosses.length>3?'...':''}</div>`;
   }
+  const kitAlerts=getKitAlerts();
+  if(kitAlerts.length){
+    const detailK=kitAlerts.slice(0,3).map(k=>`${k.name} (${k.issues.map(i=>i.name+' x'+i.qtyMissing).join(', ')})`).join(' · ');
+    al+=`<div class="alert-banner" style="background:#fee2e2;border:1.5px solid #fca5a5;color:#991b1b">🧰 <b>${kitAlerts.length} kit(s) incompleto(s)</b> — ${detailK}${kitAlerts.length>3?'...':''}</div>`;
+  }
   document.getElementById('dash-alerts').innerHTML=al;
   document.getElementById('dash-stats').innerHTML=[
     {l:"Hoje",v:todayApts.length,s:todayApts.filter(a=>a.status==='confirmed').length+' conf.',c:"#0ea5e9",i:"agenda",p:"agenda"},
     {l:"Recebido Hoje",v:fmt(todayPaid),s:fmt(todayPend)+' pendente',c:"#10b981",i:"finance",p:"finance"},
     {l:"Pacientes",v:D.patients.length,s:"cadastrados",c:"#7c3aed",i:"patients",p:"patients"},
     {l:"Alertas",v:lowSk.length+expSoon.length,s:"estoque",c:lowSk.length>0?"#e63946":"#10b981",i:"stock",p:"stock"},
+    {l:"Kits Incompletos",v:kitAlerts.length,s:"instrumental",c:kitAlerts.length>0?"#e63946":"#10b981",i:"equipment",p:"equipment"},
   ].map(s=>`<div class="card stat-card card-nav" onclick="go('${s.p}')"><div class="stat-icon" style="background:${s.c}18;color:${s.c}">${ogIco(s.i,22)}</div><div><div style="font-size:20px;font-weight:800">${s.v}</div><div style="font-size:13px;font-weight:700;color:#334155">${s.l}</div><div style="font-size:11.5px;color:var(--t3)">${s.s}</div></div></div>`).join('');
   document.getElementById('dash-today').innerHTML=!todayApts.length?'<div style="color:var(--t3);font-size:13px">Sem agendamentos hoje.</div>':
     todayApts.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>{
@@ -3110,7 +3177,7 @@ function buildAuditEntry(action,oldObj,newObj){
 // Complementa o audit trail de visitas acima (que é field-a-field, específico de
 // prontuário) — aqui é só "isso existiu, foi apagado, por quem e quando", com uma
 // cópia completa do registro (snapshot), pra qualquer entidade do sistema.
-const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',prescription:'Receita',receipt:'Recibo',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Instrumental',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
+const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',prescription:'Receita',receipt:'Recibo',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Instrumental',kit:'Kit',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
 function logDeletion(type,obj){
   if(!D._auditDeleted)D._auditDeleted=[];
   D._auditDeleted.push({timestamp:new Date().toISOString(),userId:CU?.id||0,userName:CU?.dispName||'Sistema',action:'excluir',type,snapshot:JSON.parse(JSON.stringify(obj))});
@@ -3127,6 +3194,7 @@ function auditDeletionSummary(entry){
     case 'otherPayment': return `${s.desc||''} — ${fmt(s.val||0)}`;
     case 'stock': return s.name||'(sem nome)';
     case 'equipment': return `${s.name||'(sem nome)'}${s.code?' — '+s.code:''}`;
+    case 'kit': return s.name||'(sem nome)';
     case 'supplier': return s.name||'(sem nome)';
     case 'professional': return s.dispName||s.fullName||'(sem nome)';
     case 'procedure': return s.name||'(sem nome)';
@@ -4006,7 +4074,9 @@ function sortSk(key){if(_skSort.key===key)_skSort.dir*=-1;else _skSort={key,dir:
 function renderStock(){
   const total=D.stock.reduce((s,i)=>s+i.qty*i.cost,0);document.getElementById('sk-total').textContent=`Valor total: ${fmt(total)}`;
   const q=(document.getElementById('sk-search')?.value||'').toLowerCase().trim();
+  const locFilt=document.getElementById('sk-location-filter')?.value||'';
   let list=D.stock.filter(s=>!q||(s.name+' '+(s.category||'')).toLowerCase().includes(q));
+  if(locFilt)list=list.filter(s=>(s.location||'Consultório')===locFilt);
   const{key,dir}=_skSort;
   list=[...list].sort((a,b)=>{
     if(key==='name'||key==='category')return((a[key]||'')+'').localeCompare((b[key]||'')+'')*dir;
@@ -4017,16 +4087,18 @@ function renderStock(){
   document.getElementById('sk-body').innerHTML=list.map(s=>{
     const low=s.qty<=s.minQty,du=s.exp?daysUntil(s.exp):null;
     const expB=du!==null&&du<=30?`<span class="badge" style="background:${du<=0?'#fee2e2':'#fef3c7'};color:${du<=0?'#dc2626':'#92400e'}">${du<0?'Vencido':du===0?'Hoje':du+'d'}</span>`:'';
+    const loc=s.location||'Consultório';
     return`<tr>
       <td style="font-weight:700">${s.name}${low?' <span class="badge" style="background:#fee2e2;color:#dc2626">⚠️</span>':''}</td>
       <td style="font-size:12.5px;color:var(--t3)">${s.category||'-'}</td>
       <td style="color:${low?'var(--R)':'inherit'};font-weight:${low?700:400}">${s.qty} ${s.unit||''} <span style="color:var(--t3);font-size:11px">(mín:${s.minQty})</span></td>
       <td style="font-size:12.5px">${s.exp?new Date(s.exp+'T00:00:00').toLocaleDateString('pt-BR'):'-'} ${expB}</td>
+      <td><span class="badge" style="background:${loc==='Estoque'?'#e0f2fe':'#f1f5f9'};color:${loc==='Estoque'?'#075985':'#334155'}">${loc}</span></td>
       <td style="font-size:12.5px">${s.supplierId?getSup(s.supplierId).name:'-'}</td>
       <td style="font-weight:700;color:var(--P)">${fmt(s.qty*s.cost)}</td>
       <td><button class="btn btn-o btn-sm" onclick="openSk(${s.id})">Editar</button></td>
     </tr>`;
-  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:20px">Nenhum insumo cadastrado.</td></tr>';
+  }).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--t3);padding:20px">Nenhum insumo cadastrado.</td></tr>';
 }
 function openSk(id){
   if(!canEdit()&&!id)return;EID=id||null;
@@ -4034,12 +4106,12 @@ function openSk(id){
   const s=id?D.stock.find(x=>x.id===id):{};
   document.getElementById('m-sk-t').textContent=id?'Editar Item':'Novo Item';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
-  sv('sk-name',s.name);sv('sk-cat',s.category);sv('sk-unit',s.unit);sv('sk-sup',s.supplierId||'');sv('sk-cost',s.cost);sv('sk-qty',s.qty);sv('sk-minqty',s.minQty);sv('sk-exp',s.exp);
+  sv('sk-name',s.name);sv('sk-cat',s.category);sv('sk-unit',s.unit);sv('sk-sup',s.supplierId||'');sv('sk-cost',s.cost);sv('sk-qty',s.qty);sv('sk-minqty',s.minQty);sv('sk-exp',s.exp);sv('sk-location',s.location||'Consultório');
   document.getElementById('sk-del').style.display=(id&&canDelete())?'inline-flex':'none';om('sk');
 }
 function saveSk(){if(!canEdit())return;const name=document.getElementById('sk-name').value.trim();if(!name)return;
   const gv=id=>document.getElementById(id)?.value||'';
-  const obj={name,category:gv('sk-cat'),unit:gv('sk-unit'),supplierId:+gv('sk-sup')||0,cost:+gv('sk-cost'),qty:+gv('sk-qty'),minQty:+gv('sk-minqty'),exp:gv('sk-exp')};
+  const obj={name,category:gv('sk-cat'),unit:gv('sk-unit'),supplierId:+gv('sk-sup')||0,cost:+gv('sk-cost'),qty:+gv('sk-qty'),minQty:+gv('sk-minqty'),exp:gv('sk-exp'),location:gv('sk-location')||'Consultório'};
   EID?D.stock=D.stock.map(s=>s.id===EID?{...obj,id:EID}:s):D.stock.push({...obj,id:uid()});
   save('stock');cm('sk');renderStock();}
 function delSk(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.stock.find(s=>s.id===EID);if(obj)logDeletion('stock',obj);D.stock=D.stock.filter(s=>s.id!==EID);save('stock');cm('sk');renderStock();}
@@ -4052,7 +4124,14 @@ function renderEquipment(){
   const total=D.equipment.reduce((s,e)=>s+(e.qty||0)*(e.value||0),0);
   document.getElementById('eq-total').textContent=D.equipment.length?`Valor total: ${fmt(total)}`:'Instrumental próprio dos profissionais';
   const q=(document.getElementById('eq-search')?.value||'').toLowerCase().trim();
+  const kitFilt=document.getElementById('eq-kit-filter');
+  if(kitFilt&&kitFilt.options.length<=2)kitFilt.innerHTML='<option value="">Todos os kits</option><option value="avulso">Avulso</option>'+D.kits.map(k=>`<option value="${k.id}">${k.name}</option>`).join('');
+  const kitFiltVal=kitFilt?.value||'';
+  const locFilt=document.getElementById('eq-location-filter')?.value||'';
   let list=D.equipment.filter(e=>!q||(e.name+' '+(e.category||'')+' '+(e.code||'')).toLowerCase().includes(q));
+  if(kitFiltVal==='avulso')list=list.filter(e=>!e.kitId);
+  else if(kitFiltVal)list=list.filter(e=>e.kitId===+kitFiltVal);
+  if(locFilt)list=list.filter(e=>(e.location||'Consultório')===locFilt);
   const{key,dir}=_eqSort;
   list=[...list].sort((a,b)=>{
     if(key==='name'||key==='category')return((a[key]||'')+'').localeCompare((b[key]||'')+'')*dir;
@@ -4063,17 +4142,28 @@ function renderEquipment(){
   document.getElementById('eq-body').innerHTML=list.map(e=>{
     const pr=getPro(e.professionalId);
     const condColor=EQ_COND_COLORS[e.condition]||'#94a3b8';
+    const loc=e.location||'Consultório';
+    const kitBadge=e.kitId?`<span class="badge" style="background:#ede9fe;color:#5b21b6">${getKit(e.kitId).name}</span>`:`<span class="badge" style="background:#f1f5f9;color:#64748b">Avulso</span>`;
     return`<tr>
       <td style="font-weight:700">${e.name}${e.code?`<div style="font-size:10.5px;color:var(--t3);font-weight:400">${e.code}</div>`:''}</td>
       <td style="font-size:12.5px;color:var(--P)">${e.category||'-'}</td>
       <td>${e.qty||0}</td>
       <td><span class="badge" style="background:${condColor}22;color:${condColor}">${e.condition||'—'}</span></td>
+      <td>${kitBadge}</td>
+      <td><span class="badge" style="background:${loc==='Estoque'?'#e0f2fe':'#f1f5f9'};color:${loc==='Estoque'?'#075985':'#334155'}">${loc}</span></td>
       <td style="font-size:12.5px">${e.acquisitionDate?new Date(e.acquisitionDate+'T00:00:00').toLocaleDateString('pt-BR'):'-'}</td>
       <td style="font-size:12.5px">${e.professionalId?pr.dispName:'-'}</td>
       <td style="font-weight:700;color:var(--P)">${e.value?fmt((e.qty||0)*e.value):'-'}</td>
       <td><button class="btn btn-o btn-sm" onclick="openEq(${e.id})">Editar</button></td>
     </tr>`;
-  }).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--t3);padding:20px">Nenhum instrumental cadastrado.</td></tr>';
+  }).join('')||'<tr><td colspan="10" style="text-align:center;color:var(--t3);padding:20px">Nenhum instrumental cadastrado.</td></tr>';
+}
+function setEqTab(tab){
+  document.getElementById('eqtab-list').classList.toggle('active',tab==='list');
+  document.getElementById('eqtab-kits').classList.toggle('active',tab==='kits');
+  document.getElementById('eq-view-list').style.display=tab==='list'?'':'none';
+  document.getElementById('eq-view-kits').style.display=tab==='kits'?'':'none';
+  if(tab==='kits')renderKits();
 }
 const EQ_CAT_PREFIX={'Pinça':'PIN','Broca':'BRO','Extrator':'EXT','Espelho Bucal':'ESP','Sonda Exploradora':'SON','Cureta':'CUR','Alicate':'ALI','Motor/Caneta de Alta Rotação':'MOT','Autoclave':'AUT','Outro':'EQP'};
 function _eqPrefixFor(category){
@@ -4092,40 +4182,179 @@ function updateEqCodeSuggestion(){
   if(EID)return; // não mexe no código de um item já existente
   document.getElementById('eq-code').value=_nextEqCode(document.getElementById('eq-cat').value.trim());
 }
+function updateEqLocationSuggestion(){
+  const kitId=+document.getElementById('eq-kit').value||0;
+  if(kitId)document.getElementById('eq-location').value='Consultório';
+}
 function openEq(id){
   if(!canEdit()&&!id)return;EID=id||null;
   document.getElementById('eq-pro').innerHTML='<option value="">Nenhum</option>'+D.professionals.map(p=>`<option value="${p.id}">${p.dispName}</option>`).join('');
+  document.getElementById('eq-kit').innerHTML='<option value="0">Nenhum (avulso)</option>'+D.kits.map(k=>`<option value="${k.id}">${k.name}</option>`).join('');
   const e=id?D.equipment.find(x=>x.id===id):{};
   document.getElementById('m-eq-t').textContent=id?'Editar Instrumental':'Novo Instrumental';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('eq-code',id?e.code:_nextEqCode(''));sv('eq-cat',e.category);sv('eq-name',e.name);sv('eq-qty',id?e.qty:1);
   sv('eq-cond',e.condition||'Novo');sv('eq-value',e.value);sv('eq-acq',e.acquisitionDate);sv('eq-pro',e.professionalId||'');sv('eq-notes',e.notes);
+  sv('eq-kit',e.kitId||0);sv('eq-location',e.location||'Consultório');
   document.getElementById('eq-del').style.display=(id&&canDelete())?'inline-flex':'none';om('eq');
 }
 function saveEq(){
   if(!canEdit())return;const name=document.getElementById('eq-name').value.trim();if(!name)return;
   const gv=id=>document.getElementById(id)?.value||'';
-  const obj={code:gv('eq-code'),category:gv('eq-cat'),name,qty:+gv('eq-qty')||0,condition:gv('eq-cond'),value:+gv('eq-value')||0,acquisitionDate:gv('eq-acq'),professionalId:+gv('eq-pro')||0,notes:gv('eq-notes')};
+  const obj={code:gv('eq-code'),category:gv('eq-cat'),name,qty:+gv('eq-qty')||0,condition:gv('eq-cond'),value:+gv('eq-value')||0,acquisitionDate:gv('eq-acq'),professionalId:+gv('eq-pro')||0,notes:gv('eq-notes'),kitId:+gv('eq-kit')||0,location:gv('eq-location')||'Consultório'};
   EID?D.equipment=D.equipment.map(e=>e.id===EID?{...obj,id:EID}:e):D.equipment.push({...obj,id:uid()});
   save('equipment');cm('eq');renderEquipment();
 }
 function delEq(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.equipment.find(e=>e.id===EID);if(obj)logDeletion('equipment',obj);D.equipment=D.equipment.filter(e=>e.id!==EID);save('equipment');cm('eq');renderEquipment();}
 
+// ─── KITS DE INSTRUMENTAL ────────────────────────────────────
+function kitComposition(kitId){
+  const map=new Map();
+  D.equipment.filter(e=>e.kitId===kitId).forEach(e=>{
+    const cur=map.get(e.name)||{name:e.name,qty:0};
+    cur.qty+=(e.qty||0);
+    map.set(e.name,cur);
+  });
+  return[...map.values()];
+}
+function kitStatus(kit){return(kit.openIssues||[]).some(i=>!i.resolved)?'incomplete':'complete';}
+function getKitAlerts(){
+  return D.kits.filter(k=>(k.openIssues||[]).some(i=>!i.resolved)).map(k=>({kitId:k.id,name:k.name,issues:(k.openIssues||[]).filter(i=>!i.resolved)}));
+}
+function renderKits(){
+  document.getElementById('kits-list').innerHTML=!D.kits.length?'<div class="card" style="text-align:center;padding:30px;color:var(--t3)">Nenhum kit cadastrado.</div>':
+  D.kits.map(k=>{
+    const comp=kitComposition(k.id);
+    const status=kitStatus(k);
+    const pr=getPro(k.professionalId);
+    const openIssues=(k.openIssues||[]).filter(i=>!i.resolved);
+    return`<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-weight:800;font-size:15px">${k.name} ${status==='complete'?'<span class="badge" style="background:#d1fae5;color:#065f46">Completo</span>':'<span class="badge" style="background:#fee2e2;color:#dc2626">Incompleto</span>'}</div>
+          <div style="font-size:12px;color:var(--t3)">${k.category||''}${k.professionalId?' · '+pr.dispName:''}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-o btn-sm" onclick="openKitCheck(${k.id})">🔍 Conferir Kit</button>
+          <button class="btn btn-o btn-sm" onclick="openKit(${k.id})">Editar</button>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:12.5px">
+        ${comp.length?comp.map(c=>`<span class="badge" style="background:#f1f5f9;color:#334155;margin:2px 4px 2px 0">${c.name} (${c.qty})</span>`).join(''):'<span style="color:var(--t3)">Nenhum instrumental atribuído ainda — edite um item no Instrumental e escolha este Kit.</span>'}
+      </div>
+      ${openIssues.length?`<div style="margin-top:8px;font-size:12px;color:#dc2626">⚠️ Repor: ${openIssues.map(i=>`${i.name} (${i.qtyMissing})`).join(', ')}</div>`:''}
+      ${k.checklog&&k.checklog.length?`<div style="margin-top:6px;font-size:11px;color:var(--t3)">Última conferência: ${new Date(k.checklog[0].ts).toLocaleString('pt-BR')} por ${k.checklog[0].userName}</div>`:''}
+    </div>`;
+  }).join('');
+}
+function openKit(id){
+  if(!canEdit()&&!id)return;EID=id||null;
+  document.getElementById('kit-pro').innerHTML='<option value="">Nenhum</option>'+D.professionals.map(p=>`<option value="${p.id}">${p.dispName}</option>`).join('');
+  const k=id?D.kits.find(x=>x.id===id):{};
+  document.getElementById('m-kit-t').textContent=id?'Editar Kit':'Novo Kit';
+  const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
+  sv('kit-name',k.name);sv('kit-cat',k.category);sv('kit-pro',k.professionalId||'');sv('kit-notes',k.notes);
+  document.getElementById('kit-del').style.display=(id&&canDelete())?'inline-flex':'none';om('kit');
+}
+function saveKit(){
+  if(!canEdit())return;const name=document.getElementById('kit-name').value.trim();if(!name)return;
+  const gv=id=>document.getElementById(id)?.value||'';
+  const obj={name,category:gv('kit-cat'),professionalId:+gv('kit-pro')||0,notes:gv('kit-notes')};
+  if(EID)D.kits=D.kits.map(k=>k.id===EID?{...k,...obj}:k);
+  else D.kits.push({...obj,id:uid(),openIssues:[],checklog:[]});
+  save('kits');cm('kit');renderKits();
+}
+function delKit(){
+  if(!canDelete()||!confirm('Excluir kit? O instrumental vinculado a ele não é excluído, só volta a ficar avulso.'))return;
+  const obj=D.kits.find(k=>k.id===EID);if(!obj)return;
+  logDeletion('kit',obj);
+  D.equipment=D.equipment.map(e=>e.kitId===EID?{...e,kitId:0}:e);
+  D.kits=D.kits.filter(k=>k.id!==EID);
+  save('equipment');save('kits');cm('kit');renderKits();
+}
+let _kitCheckId=null;
+function openKitCheck(id){
+  if(!canEdit())return;
+  const kit=D.kits.find(k=>k.id===id);if(!kit)return;
+  _kitCheckId=id;
+  const comp=kitComposition(id);
+  document.getElementById('m-kit-check-t').textContent='Conferir: '+kit.name;
+  document.getElementById('kit-check-body').innerHTML=!comp.length?'<div style="color:var(--t3)">Nenhum instrumental atribuído a este kit ainda.</div>':
+    comp.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid #f1f5f9;padding:6px 0">
+      <div><b>${c.name}</b><div style="font-size:11px;color:var(--t3)">Esperado: ${c.qty}</div></div>
+      <input type="number" class="inp kit-check-found" data-name="${c.name}" data-expected="${c.qty}" style="width:80px" min="0" value="${c.qty}"/>
+    </div>`).join('');
+  om('kit-check');
+}
+function saveKitCheck(){
+  if(!canEdit())return;
+  const kit=D.kits.find(k=>k.id===_kitCheckId);if(!kit)return;
+  const items=[...document.querySelectorAll('.kit-check-found')].map(inp=>({name:inp.dataset.name,qtyExpected:+inp.dataset.expected,qtyFound:+inp.value||0}));
+  if(!kit.checklog)kit.checklog=[];
+  if(!kit.openIssues)kit.openIssues=[];
+  items.forEach(it=>{
+    const missingQty=it.qtyExpected-it.qtyFound;
+    if(missingQty<=0){
+      kit.openIssues.filter(oi=>oi.name===it.name&&!oi.resolved).forEach(oi=>oi.resolved=true);
+      return;
+    }
+    // Perda física constatada na conferência: reduz de fato a quantidade registrada nos itens
+    // desse kit ANTES de repor — senão a reposição soma em cima do que já tinha, duplicando.
+    let toReduce=missingQty;
+    D.equipment.filter(e=>e.kitId===kit.id&&e.name===it.name).forEach(e=>{
+      if(toReduce<=0)return;
+      const cut=Math.min(e.qty,toReduce);
+      e.qty-=cut;toReduce-=cut;
+    });
+    D.equipment=D.equipment.filter(e=>!(e.kitId===kit.id&&e.name===it.name&&e.qty<=0));
+    let issue=kit.openIssues.find(oi=>oi.name===it.name&&!oi.resolved);
+    if(!issue){issue={id:uid(),name:it.name,qtyMissing:missingQty,ts:new Date().toISOString(),resolved:false};kit.openIssues.push(issue);}
+    else issue.qtyMissing=missingQty;
+    const avulso=D.equipment.find(e=>!e.kitId&&e.name===it.name&&(e.location||'Consultório')==='Estoque'&&e.qty>=missingQty);
+    if(avulso){
+      if(avulso.qty===missingQty)D.equipment=D.equipment.map(e=>e.id===avulso.id?{...e,kitId:kit.id,location:'Consultório'}:e);
+      else{
+        D.equipment=D.equipment.map(e=>e.id===avulso.id?{...e,qty:e.qty-missingQty}:e);
+        D.equipment.push({id:uid(),code:'',category:'',name:it.name,qty:missingQty,condition:'Bom',value:0,acquisitionDate:'',professionalId:0,notes:'Reposto automaticamente do estoque avulso',kitId:kit.id,location:'Consultório'});
+      }
+      issue.resolved=true;
+    }
+  });
+  save('equipment');
+  kit.checklog.unshift({id:uid(),ts:new Date().toISOString(),userId:CU?.id||0,userName:CU?.dispName||'Sistema',items,missingCount:items.filter(i=>i.qtyFound<i.qtyExpected).length});
+  save('kits');cm('kit-check');renderKits();renderDashboard();
+}
+
 // ─── SHOPPING ──────────────────────────────────────────────
 function renderShopping(){
   const low=D.stock.filter(s=>s.qty<=s.minQty),exp=D.stock.filter(s=>s.exp&&daysUntil(s.exp)<=30);
   const all=[...new Map([...low,...exp].map(s=>[s.id,s])).values()];
-  document.getElementById('shop-list').innerHTML=!all.length?'<div class="card" style="text-align:center;padding:30px;color:#10b981;font-size:15px;font-weight:700">✅ Estoque em dia!</div>':
-  `<div class="card"><div class="card-hd">${ogIco('shopping',18)} Itens para Comprar</div>
-  <table class="tbl"><thead><tr><th>Insumo</th><th>Atual</th><th>Mínimo</th><th>Validade</th><th>Fornecedor</th><th>Est. Custo</th></tr></thead><tbody>
-  ${all.map(s=>{const du=s.exp?daysUntil(s.exp):null,need=Math.max(0,s.minQty*3-s.qty),sup=getSup(s.supplierId);
-    return`<tr><td style="font-weight:700">${s.name}${du!==null&&du<=30?` <span class="badge" style="background:#fee2e2;color:#dc2626">${du<0?'Venc.':du+'d'}</span>`:''}</td>
-      <td><span style="color:var(--R);font-weight:700">${s.qty}</span> ${s.unit}</td><td>${s.minQty}</td>
-      <td style="font-size:11.5px">${s.exp?new Date(s.exp+'T00:00:00').toLocaleDateString('pt-BR'):'-'}</td>
-      <td style="font-size:11.5px">${sup.name!=='—'?sup.name+(sup.phone?` ${waBadge(sup.phone)}`:''):'-'}</td>
-      <td style="font-weight:700;color:var(--P)">${fmt(need*s.cost)}</td></tr>`;}).join('')}
-  </tbody></table>
-  <div style="margin-top:10px;text-align:right;font-weight:800;color:var(--P)">Total Estimado: ${fmt(all.reduce((s,sk)=>s+Math.max(0,sk.minQty*3-sk.qty)*sk.cost,0))}</div></div>`;
+  const kitAlerts=getKitAlerts();
+  let html='';
+  if(!all.length&&!kitAlerts.length){
+    html='<div class="card" style="text-align:center;padding:30px;color:#10b981;font-size:15px;font-weight:700">✅ Tudo em dia!</div>';
+  } else {
+    if(all.length){
+      html+=`<div class="card" style="margin-bottom:14px"><div class="card-hd">${ogIco('shopping',18)} Insumos para Comprar</div>
+      <table class="tbl"><thead><tr><th>Insumo</th><th>Atual</th><th>Mínimo</th><th>Validade</th><th>Fornecedor</th><th>Est. Custo</th></tr></thead><tbody>
+      ${all.map(s=>{const du=s.exp?daysUntil(s.exp):null,need=Math.max(0,s.minQty*3-s.qty),sup=getSup(s.supplierId);
+        return`<tr><td style="font-weight:700">${s.name}${du!==null&&du<=30?` <span class="badge" style="background:#fee2e2;color:#dc2626">${du<0?'Venc.':du+'d'}</span>`:''}</td>
+          <td><span style="color:var(--R);font-weight:700">${s.qty}</span> ${s.unit}</td><td>${s.minQty}</td>
+          <td style="font-size:11.5px">${s.exp?new Date(s.exp+'T00:00:00').toLocaleDateString('pt-BR'):'-'}</td>
+          <td style="font-size:11.5px">${sup.name!=='—'?sup.name+(sup.phone?` ${waBadge(sup.phone)}`:''):'-'}</td>
+          <td style="font-weight:700;color:var(--P)">${fmt(need*s.cost)}</td></tr>`;}).join('')}
+      </tbody></table>
+      <div style="margin-top:10px;text-align:right;font-weight:800;color:var(--P)">Total Estimado: ${fmt(all.reduce((s,sk)=>s+Math.max(0,sk.minQty*3-sk.qty)*sk.cost,0))}</div></div>`;
+    }
+    if(kitAlerts.length){
+      html+=`<div class="card"><div class="card-hd">🧰 Reposição de Instrumental (Kits Incompletos)</div>
+      <table class="tbl"><thead><tr><th>Kit</th><th>Item Faltando</th><th>Quantidade</th></tr></thead><tbody>
+      ${kitAlerts.flatMap(k=>k.issues.map(i=>`<tr><td style="font-weight:700">${k.name}</td><td>${i.name}</td><td><span style="color:var(--R);font-weight:700">${i.qtyMissing}</span></td></tr>`)).join('')}
+      </tbody></table>
+      <div style="margin-top:8px;font-size:11.5px;color:var(--t3)">Sem instrumental avulso suficiente no Estoque pra repor automaticamente — precisa comprar.</div></div>`;
+    }
+  }
+  document.getElementById('shop-list').innerHTML=html;
 }
 
 // ─── SUPPLIERS ─────────────────────────────────────────────
@@ -6583,7 +6812,7 @@ function initMulticlinic(){
 }
 
 function migrateDataToClinic(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
   keys.forEach(k=>{
     const existing=LS.get(k);
     if(existing!==null){
@@ -6671,7 +6900,7 @@ window._onFirestoreCollectionUpdate=function(key,data,cache){
 // ── Passo 7: terceira camada de save() — sobe pro Firestore o que mudou ──
 // Segue o mesmo padrão já documentado (reatribuição, nunca `function save(k){}`
 // de novo — é o bug de recursão infinita já resolvido uma vez neste arquivo).
-const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts'];
+const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts'];
 const FB_SINGLEDOC_KEYS=['config','messages'];
 function fbDocIdFor(key,rec){
   return key==='professionals' ? String(rec.email||'').toLowerCase().trim() : String(rec.id);
@@ -6742,7 +6971,7 @@ function switchClinic(id){
 
 function saveAllClinicData(){
   if(!activeClinicId)return;
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
   keys.forEach(k=>{
     if(D[k]!==undefined){
       localStorage.setItem('og3_clinic_'+activeClinicId+'_'+k,JSON.stringify(D[k]));
@@ -6751,7 +6980,7 @@ function saveAllClinicData(){
 }
 
 function loadClinicData(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
   keys.forEach(k=>{
     const raw=localStorage.getItem('og3_clinic_'+clinicId+'_'+k);
     if(raw){try{D[k]=JSON.parse(raw);}catch{}}
@@ -6782,7 +7011,7 @@ function saveClinic(){
     const newC={...obj,id:uid(),isDefault:false,createdAt:today()};
     clinics.push(newC);
     // Initialize empty data for new clinic
-    const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','prescriptions','receipts'];
+    const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','prescriptions','receipts'];
     keys.forEach(k=>{localStorage.setItem('og3_clinic_'+newC.id+'_'+k,JSON.stringify([]));});
     localStorage.setItem('og3_clinic_'+newC.id+'_professionals',JSON.stringify(D.professionals||[]));
     localStorage.setItem('og3_clinic_'+newC.id+'_procs',JSON.stringify(D.procs||[]));
@@ -6798,7 +7027,7 @@ function delClinic(){
   const c=clinics.find(x=>x.id===EID);
   if(c?.isDefault){alert('Não é possível excluir a clínica padrão.');return;}
   // Remove clinic data
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
   keys.forEach(k=>{localStorage.removeItem('og3_clinic_'+EID+'_'+k);});
   clinics=clinics.filter(x=>x.id!==EID);
   saveClinics(clinics);
