@@ -1670,6 +1670,13 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div class="modal-footer"><button class="btn btn-o" onclick="cm('audit')">Fechar</button></div>
 </div></div>
 
+<div class="overlay" id="m-patapts" style="display:none" onclick="if(event.target===this)cm('patapts')">
+<div class="modal" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto">
+  <div class="modal-title">🗓️ Agendamentos do Paciente</div>
+  <div id="patapts-content"></div>
+  <div class="modal-footer"><button class="btn btn-o" onclick="cm('patapts')">Fechar</button></div>
+</div></div>
+
 <script>
 // ════════════════════════════════════════════════════════════
 //  ODONTOGUEST v3 — FULL SCRIPT
@@ -2352,12 +2359,13 @@ function renderAgendaDay(){
   const sel=document.getElementById('agenda-date').value;
   const proFilt=document.getElementById('agenda-pro-filter')?.value||'';
   document.getElementById('agenda-day-lbl').textContent=new Date(sel+'T00:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
-  const hours=Array.from({length:11},(_,i)=>`${String(i+8).padStart(2,'0')}:00`);
+  const hours=Array.from({length:22},(_,i)=>`${String(8+Math.floor(i/2)).padStart(2,'0')}:${i%2===0?'00':'30'}`);
   let dayApts=D.appointments.filter(a=>a.date===sel);
   if(proFilt) dayApts=dayApts.filter(a=>a.professionalId===+proFilt);
   dayApts.sort((a,b)=>a.time.localeCompare(b.time));
   document.getElementById('agenda-grid').innerHTML=hours.map(h=>{
-    const apts=dayApts.filter(a=>a.time.startsWith(h.split(':')[0]));
+    const hMin=_timeToMin(h);
+    const apts=dayApts.filter(a=>{const t=_timeToMin(a.time);return t>=hMin&&t<hMin+30;});
     return`<div class="hour-row"><div class="hour-lbl">${h}</div><div class="hour-slots">${apts.map(a=>{
       const p=getPat(a.patientId),pr=getPro(a.professionalId),proc=getProc(a.procedureId);
       const wLink=wa(p.phone);
@@ -2493,7 +2501,7 @@ function saveAptQuickAdd(){
   D.patients.push(p);save('patients');
   selectAptPat(p.id);
 }
-function openApt(id){
+function openApt(id,prePatientId){
   if(!canEdit()&&!id)return;
   EID=id||null;fillAptSels();
   document.getElementById('m-apt-t').textContent=id?'Editar Agendamento':'Novo Agendamento';
@@ -2502,6 +2510,7 @@ function openApt(id){
   sv('apt-pat',a.patientId);sv('apt-pat-search',a.patientId?(patDisp(a.patientId)||''):'');
   document.getElementById('apt-pat-results').style.display='none';
   cancelAptQuickAdd();
+  if(!id&&prePatientId)selectAptPat(prePatientId);
   sv('apt-pro',a.professionalId||CU?.id);sv('apt-proc',a.procedureId);
   sv('apt-date',a.date||document.getElementById('agenda-date')?.value||today());sv('apt-time',a.time||'09:00');
   sv('apt-status',a.status||'scheduled');sv('apt-pay',a.pay||'pix');sv('apt-payst',a.payst||'pending');
@@ -2512,6 +2521,15 @@ function openApt(id){
   document.getElementById('apt-del').style.display=(id&&canDelete())?'inline-flex':'none';
   om('apt');
 }
+function _timeToMin(t){const[h,m]=t.split(':').map(Number);return h*60+m;}
+function findApptConflict(profId,date,time,durMin,excludeId){
+  const start=_timeToMin(time),end=start+(durMin||30);
+  return D.appointments.find(a=>{
+    if(a.professionalId!==profId||a.date!==date||a.status==='cancelled'||a.id===excludeId)return false;
+    const aProc=getProc(a.procedureId),aStart=_timeToMin(a.time),aEnd=aStart+(aProc.dur||30);
+    return start<aEnd&&aStart<end;
+  });
+}
 function saveApt(){
   if(!canEdit()){alert('Sem permissão.');return;}
   const patId=+document.getElementById('apt-pat').value,proId=+document.getElementById('apt-pro').value,procId=+document.getElementById('apt-proc').value;
@@ -2519,7 +2537,13 @@ function saveApt(){
   const disc=+document.getElementById('apt-disc').value||0;
   const proc=getProc(procId);
   const finalVal=proc.price*(1-disc/100);
-  const obj={patientId:patId,professionalId:proId,procedureId:procId,date:document.getElementById('apt-date').value,time:document.getElementById('apt-time').value,status:document.getElementById('apt-status').value,pay:document.getElementById('apt-pay').value,payst:document.getElementById('apt-payst').value,notes:document.getElementById('apt-notes').value,disc,finalVal};
+  const date=document.getElementById('apt-date').value,time=document.getElementById('apt-time').value;
+  const conflict=findApptConflict(proId,date,time,proc.dur,EID);
+  if(conflict){
+    const cPat=getPat(conflict.patientId);
+    if(!confirm(`⚠️ Já existe um agendamento para este profissional neste horário: "${patDisp(conflict.patientId)||cPat.name}" às ${conflict.time}.\n\nDeseja salvar mesmo assim (encaixe)?`))return;
+  }
+  const obj={patientId:patId,professionalId:proId,procedureId:procId,date,time,status:document.getElementById('apt-status').value,pay:document.getElementById('apt-pay').value,payst:document.getElementById('apt-payst').value,notes:document.getElementById('apt-notes').value,disc,finalVal};
   const apId=EID||uid();
   EID?D.appointments=D.appointments.map(a=>a.id===EID?{...a,...obj,id:EID}:a):D.appointments.push({...obj,id:apId});
   save('appointments');cm('apt');renderAgenda();if(activePage==='dashboard')renderDashboard();
@@ -2942,6 +2966,8 @@ function renderRecords(forcePatId){
       <div><div style="font-size:20px;font-weight:800">${p.name}</div>${p.social?`<div style="color:var(--P);font-size:13px;font-weight:600">👤 ${p.social}</div>`:''}<div style="font-size:12.5px;color:var(--t3);margin-top:4px">${p.dob?age(p.dob)+' anos · ':''} ${p.bloodType||''} ${p.allergies?'· Alergia: '+p.allergies:''}</div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${p.phone?`<a href="${wa(p.phone)}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:#dcfce7;color:#16a34a;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:700;text-decoration:none">📲 WhatsApp</a>`:''}
+        <button class="btn btn-o btn-sm" onclick="openPatientAppts(${patId})">🗓️ Ver Agendamentos</button>
+        ${canEdit()?`<button class="btn btn-o btn-sm" onclick="go('agenda');openApt(null,${patId})">📅 Agendar</button>`:''}
       </div>
     </div>
     <div class="pay-track" style="margin-top:12px">
@@ -3292,6 +3318,25 @@ function renderAuditLog(){
   });
   html+='</div>';
   container.innerHTML=html;
+}
+function openPatientAppts(patientId){
+  const apts=D.appointments.filter(a=>a.patientId===+patientId).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
+  const st={confirmed:{bg:"#dcfce7",c:"#16a34a",l:"Confirmado"},scheduled:{bg:"#dbeafe",c:"#2563eb",l:"Agendado"},completed:{bg:"#f3f4f6",c:"#6b7280",l:"Concluído"},cancelled:{bg:"#fee2e2",c:"#dc2626",l:"Cancelado"}};
+  let html=apts.length?apts.map(a=>{
+    const pr=getPro(a.professionalId),proc=getProc(a.procedureId),s=st[a.status]||st.scheduled;
+    return `<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <div>
+        <div style="font-weight:800;font-size:14px">${new Date(a.date+'T00:00:00').toLocaleDateString('pt-BR')} · ${a.time}</div>
+        <div style="font-size:12.5px;color:var(--t2)">${proc?.name||''} · ${pr?.dispName||''}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span class="badge" style="background:${s.bg};color:${s.c}">${s.l}</span>
+        ${canEdit()?`<button class="btn btn-o btn-sm" onclick="cm('patapts');go('agenda');openApt(${a.id})">✏️ Editar</button>`:''}
+      </div>
+    </div>`;
+  }).join(''):'<div class="card" style="color:var(--t3);text-align:center">Nenhum agendamento para este paciente.</div>';
+  document.getElementById('patapts-content').innerHTML=html;
+  om('patapts');
 }
 // Histórico por paciente (todos os visits do paciente)
 function openPatientAuditLog(patientId){
