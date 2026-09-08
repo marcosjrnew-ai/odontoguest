@@ -1677,6 +1677,12 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div class="modal-footer"><button class="btn btn-o" onclick="cm('patapts')">Fechar</button></div>
 </div></div>
 
+<div class="overlay" id="m-patsummary" style="display:none" onclick="if(event.target===this)cm('patsummary')">
+<div class="modal" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto">
+  <div class="modal-title">👤 Resumo do Paciente</div>
+  <div id="patsummary-content"></div>
+</div></div>
+
 <script>
 // ════════════════════════════════════════════════════════════
 //  ODONTOGUEST v3 — FULL SCRIPT
@@ -2593,15 +2599,19 @@ function renderPatients(){
     return`<tr>
       <td><div style="display:flex;align-items:center;gap:9px">
         ${p.photo?`<img src="${p.photo}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;cursor:pointer;flex-shrink:0" onclick="viewPhoto('${p.photo}')"/>`:`<div style="width:36px;height:36px;border-radius:50%;background:var(--Pl);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--P);flex-shrink:0">${p.name.charAt(0)}</div>`}
-        <div><div style="font-weight:700">${p.name}</div><div style="font-size:11px;color:var(--t3)">${p.email||''}</div></div>
+        <div style="cursor:pointer" onclick="openPatSummary(${p.id})"><div style="font-weight:700">${p.name}</div><div style="font-size:11px;color:var(--t3)">${p.email||''}</div></div>
       </div></td>
       <td>${p.social?`<span style="color:var(--P);font-weight:600;font-size:12px">👤 ${p.social}</span>`:'-'}</td>
       <td>${wLink?`<a href="${wLink}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#16a34a;border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:700;text-decoration:none">📲 ${p.phone}</a>`:'-'}</td>
       <td>${p.dob?age(p.dob)+'a':'-'}</td>
       <td>${p.bloodType?`<span class="badge" style="background:#fee2e2;color:#dc2626">${p.bloodType}</span>`:'-'}</td>
       <td><div style="font-size:12.5px"><div style="color:var(--G);font-weight:700">${fmt(bal.paid)} pago</div><div style="color:${bal.remain>0?'var(--R)':'var(--t3)'};font-weight:${bal.remain>0?700:400}">${bal.remain>0?fmt(bal.remain)+' devido':'Quitado'}</div></div></td>
-      <td><button class="btn btn-o btn-sm" onclick="openPat(${p.id})">Ver/Editar</button>
-          <button class="btn btn-p btn-sm" style="margin-left:4px" onclick="go('records');setTimeout(()=>renderRecords(${p.id}),200)">Prontuário</button></td>
+      <td style="white-space:nowrap">
+          <button class="btn btn-o btn-sm" onclick="openPat(${p.id})">Ver/Editar</button>
+          <button class="btn btn-p btn-sm" style="margin-left:4px" onclick="go('records');setTimeout(()=>renderRecords(${p.id}),200)">Prontuário</button>
+          <button class="btn btn-o btn-sm" style="margin-left:4px" onclick="openPatientAppts(${p.id})">🗓️ Agendamentos</button>
+          ${canEdit()?`<button class="btn btn-o btn-sm" style="margin-left:4px" onclick="go('agenda');openApt(null,${p.id})">📅 Agendar</button>`:''}
+      </td>
     </tr>`;
   }).join('');
 }
@@ -2620,6 +2630,41 @@ function renderPatientSourceBreakdown(){
     </div>`;
   }).join('');
   el.innerHTML=rows+`<div style="font-size:11px;color:var(--t3);margin-top:4px">${total} de ${D.patients.length} pacientes com origem cadastrada</div>`;
+}
+function openPatSummary(id){
+  const p=D.patients.find(x=>x.id===+id);if(!p)return;
+  const bal=patBalance(id);
+  const visits=D.visits.filter(v=>v.patientId===+id).sort((a,b)=>b.date.localeCompare(a.date));
+  const lastVisit=visits[0];
+  const nextApt=D.appointments.filter(a=>a.patientId===+id&&a.date>=today()&&a.status!=='cancelled').sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))[0];
+  const pendRet=D.returns.find(r=>r.patientId===+id&&r.status==='pending');
+  document.getElementById('patsummary-content').innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      ${p.photo?`<img src="${p.photo}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;flex-shrink:0"/>`:`<div style="width:56px;height:56px;border-radius:50%;background:var(--Pl);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--P);flex-shrink:0">${p.name.charAt(0)}</div>`}
+      <div>
+        <div style="font-size:18px;font-weight:800">${p.name}</div>
+        ${p.social?`<div style="color:var(--P);font-size:12.5px;font-weight:600">👤 ${p.social}</div>`:''}
+        <div style="font-size:12px;color:var(--t3)">${p.dob?age(p.dob)+' anos · ':''}${p.bloodType||''}${p.allergies?' · Alergia: '+p.allergies:''}</div>
+      </div>
+    </div>
+    <div class="pay-track" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700"><span>💰 Financeiro do Paciente</span><span>${fmt(bal.paid)} / ${fmt(bal.total)}</span></div>
+      <div class="pay-bar-bg"><div class="pay-bar" style="width:${bal.total>0?Math.min(100,bal.paid/bal.total*100):0}%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--t2)"><span>Pago: <b style="color:var(--G)">${fmt(bal.paid)}</b></span><span>Restante: <b style="color:${bal.remain>0?'var(--R)':'var(--G)'}">${fmt(bal.remain)}</b></span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:12.5px;margin-bottom:14px">
+      <div>📋 <b>${visits.length}</b> atendimento${visits.length!==1?'s':''} registrado${visits.length!==1?'s':''}${lastVisit?` · último em ${new Date(lastVisit.date+'T00:00:00').toLocaleDateString('pt-BR')}`:''}</div>
+      ${nextApt?`<div>🗓️ Próximo agendamento: <b>${new Date(nextApt.date+'T00:00:00').toLocaleDateString('pt-BR')} · ${nextApt.time}</b> (${getProc(nextApt.procedureId).name})</div>`:'<div style="color:var(--t3)">🗓️ Sem agendamentos futuros</div>'}
+      ${pendRet?`<div>🔁 Retorno pendente: <b>${new Date(pendRet.date+'T00:00:00').toLocaleDateString('pt-BR')}</b></div>`:''}
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-p btn-sm" onclick="cm('patsummary');go('records');setTimeout(()=>renderRecords(${p.id}),200)">📋 Ver Prontuário Completo</button>
+      <button class="btn btn-o btn-sm" onclick="cm('patsummary');openPat(${p.id})">✏️ Editar Cadastro</button>
+      <button class="btn btn-o btn-sm" onclick="openPatientAppts(${p.id})">🗓️ Ver Agendamentos</button>
+      ${canEdit()?`<button class="btn btn-o btn-sm" onclick="cm('patsummary');go('agenda');openApt(null,${p.id})">📅 Agendar</button>`:''}
+    </div>
+    <div class="modal-footer"><button class="btn btn-o" onclick="cm('patsummary')">Fechar</button></div>`;
+  om('patsummary');
 }
 function openPat(id){
   EID=id||null; tempPatPhoto=null;
