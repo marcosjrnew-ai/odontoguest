@@ -7282,6 +7282,7 @@ window._onFirestoreCollectionUpdate=function(key,data,cache){
       window._remoteCache[key]=cache;
       save(key);
       pushToFirestore(key); // sobe pro Firestore o que só existia localmente
+      _refreshCUIfProfessionals(key);
       if(CU&&activePage)go(activePage);
       return;
     }
@@ -7289,8 +7290,21 @@ window._onFirestoreCollectionUpdate=function(key,data,cache){
   D[key]=data;
   window._remoteCache[key]=cache!==undefined?cache:JSON.parse(JSON.stringify(data));
   save(key);
+  _refreshCUIfProfessionals(key);
   if(CU&&activePage)go(activePage);
 };
+// D.professionals é sobrescrito aqui a cada sincronização, mas CU (variável de sessão do
+// profissional logado, usada em canEdit()/canAdmin()/canDelete()/pageAccess) nunca era atualizada
+// junto — se outro dispositivo mudasse profile/pageAccess/canDeleteOverride do PRÓPRIO profissional
+// já logado (ex: Admin concede canDeleteOverride pra alguém que já está com o app aberto), a
+// mudança chegava em D.professionals só que continuava invisível pra canDelete() etc. até a
+// pessoa deslogar e logar de novo. Refaz CU a partir do registro atualizado sempre que for a
+// própria coleção de profissionais.
+function _refreshCUIfProfessionals(key){
+  if(key!=='professionals'||!CU)return;
+  const updated=D.professionals.find(p=>p.id===CU.id);
+  if(updated){CU=updated;applyPagePermissions();}
+}
 
 // ── Passo 7: terceira camada de save() — sobe pro Firestore o que mudou ──
 // Segue o mesmo padrão já documentado (reatribuição, nunca `function save(k){}`
