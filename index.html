@@ -1664,6 +1664,26 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   </div>
 </div></div>
 
+<!-- ── Modais genéricos: substituem confirm()/alert() nativos do navegador ── -->
+<div class="overlay" id="m-confirm" style="display:none" onclick="if(event.target===this)_resolveConfirm(false)">
+<div class="modal" onclick="event.stopPropagation()" style="max-width:400px">
+  <div class="modal-title">⚠️ Confirmar</div>
+  <div id="confirm-msg" style="white-space:pre-line;font-size:13.5px;color:var(--t2);margin-bottom:16px"></div>
+  <div class="modal-footer">
+    <button class="btn btn-o" onclick="_resolveConfirm(false)">Cancelar</button>
+    <button class="btn btn-p" onclick="_resolveConfirm(true)">Confirmar</button>
+  </div>
+</div></div>
+
+<div class="overlay" id="m-alertbox" style="display:none" onclick="if(event.target===this)_resolveAlert()">
+<div class="modal" onclick="event.stopPropagation()" style="max-width:400px">
+  <div class="modal-title">Aviso</div>
+  <div id="alertbox-msg" style="white-space:pre-line;font-size:13.5px;color:var(--t2);margin-bottom:16px"></div>
+  <div class="modal-footer">
+    <button class="btn btn-p" onclick="_resolveAlert()">OK</button>
+  </div>
+</div></div>
+
 <!-- ── Modal: Histórico de Alterações (Audit Log) ── -->
 <div class="overlay" id="m-audit" style="display:none" onclick="if(event.target===this)cm('audit')">
 <div class="modal modal-lg" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto">
@@ -2268,18 +2288,51 @@ function go(page){
 // (comportamento nativo esperado de "tela inicial"), e não antes disso.
 let _modalStack=[],_suppressPopstate=false,_suppressPageHistory=false,_historyInited=false;
 function cm(n){
-  document.getElementById('m-'+n).style.display='none';EID=null;
+  document.getElementById('m-'+n).style.display='none';
+  // 'confirm'/'alertbox' empilham por cima de outro modal (ex: Excluir dentro do modal de
+  // Agendamento) que ainda está usando EID — a função que chamou confirm()/alert() só retoma
+  // DEPOIS que este cm() já rodou (é o que resolve a Promise), então zerar EID aqui apagaria o
+  // registro que a função de fora ainda precisa (ex: delApt() acabaria filtrando contra EID=null,
+  // que não bate com nenhum id real, e nada seria excluído). Ver plano de confirm()/alert().
+  if(n!=='confirm'&&n!=='alertbox')EID=null;
   if(n==='audit'){_patientAuditMode=false;_patientAuditData=[];}
   const idx=_modalStack.lastIndexOf(n);
   if(idx!==-1){_modalStack.splice(idx,1);_suppressPopstate=true;history.back();}
 }
 function om(n){document.getElementById('m-'+n).style.display='flex';history.pushState({ogModal:n},'');_modalStack.push(n);}
+// ── confirm()/alert() do próprio app (substituem os diálogos nativos do navegador) ──
+// Mantém os nomes globais confirm/alert — call sites não precisam trocar o texto da chamada.
+// alert() não bloqueia (a Promise pode ser ignorada, reproduz o "dispara e segue" de hoje na
+// prática); confirm() PRECISA de await em quem chama, senão `!confirm(...)` compara contra um
+// objeto Promise (sempre truthy) e o `if(!confirm(...))return;` nunca aborta — ver plano.
+let _confirmResolve=null,_alertResolve=null;
+window.confirm=function(msg){
+  return new Promise(resolve=>{
+    _confirmResolve=resolve;
+    document.getElementById('confirm-msg').textContent=msg;
+    om('confirm');
+  });
+};
+window.alert=function(msg){
+  return new Promise(resolve=>{
+    _alertResolve=resolve;
+    document.getElementById('alertbox-msg').textContent=msg;
+    om('alertbox');
+  });
+};
+function _resolveConfirm(val){cm('confirm');if(_confirmResolve){_confirmResolve(val);_confirmResolve=null;}}
+function _resolveAlert(){cm('alertbox');if(_alertResolve){_alertResolve();_alertResolve=null;}}
 window.addEventListener('popstate',(e)=>{
   if(_suppressPopstate){_suppressPopstate=false;return;}
   if(_modalStack.length){
     const n=_modalStack.pop();
     const el=document.getElementById('m-'+n);if(el)el.style.display='none';
     EID=null;if(n==='audit'){_patientAuditMode=false;_patientAuditData=[];}
+    // Fechar via botão/gesto voltar não passa por _resolveConfirm/_resolveAlert — sem isso a
+    // Promise ficaria pendurada pra sempre (a função que estava esperando nunca conclui nem
+    // aborta). Resolve como "cancelar" pro confirm, mesma semântica de clicar fora/Cancelar.
+    if(n==='confirm'&&_confirmResolve){_confirmResolve(false);_confirmResolve=null;}
+    if(n==='alertbox'&&_alertResolve){_alertResolve();_alertResolve=null;}
     return;
   }
   if(e.state&&e.state.ogPage&&e.state.ogPage!==activePage){
@@ -2576,16 +2629,16 @@ function cancelAptQuickAdd(){
   const el=document.getElementById('apt-pat-quickadd');
   if(el)el.style.display='none';
 }
-function saveAptQuickAdd(){
+async function saveAptQuickAdd(){
   const name=document.getElementById('apt-pat-qname').value.trim();
   if(!name){alert('Nome obrigatório.');return;}
   const phone=document.getElementById('apt-pat-qphone').value.replace(/[^0-9]/g,'');
   if(isDupName(D.patients,name,'name')){
-    if(!confirm('⚠️ Já existe um paciente cadastrado com este nome.\n\nDeseja continuar mesmo assim?'))return;
+    if(!await confirm('⚠️ Já existe um paciente cadastrado com este nome.\n\nDeseja continuar mesmo assim?'))return;
   }
   if(phone&&isDupDoc(D.patients,phone,'phone')){
     const existing=D.patients.find(p=>_normDoc(p.phone)===_normDoc(phone));
-    if(confirm(`⚠️ Já existe um paciente cadastrado com este telefone: "${patDisp(existing.id)||existing.name}".\n\nDeseja usar o cadastro existente em vez de criar um novo?`)){
+    if(await confirm(`⚠️ Já existe um paciente cadastrado com este telefone: "${patDisp(existing.id)||existing.name}".\n\nDeseja usar o cadastro existente em vez de criar um novo?`)){
       selectAptPat(existing.id);return;
     }
   }
@@ -2622,7 +2675,7 @@ function findApptConflict(profId,date,time,durMin,excludeId){
     return start<aEnd&&aStart<end;
   });
 }
-function saveApt(){
+async function saveApt(){
   if(!canEdit()||!pageEditable('agenda')){alert('Sem permissão.');return;}
   const patId=+document.getElementById('apt-pat').value,proId=+document.getElementById('apt-pro').value,procId=+document.getElementById('apt-proc').value;
   if(!patId||!proId||!procId){alert('Preencha paciente, profissional e procedimento.');return;}
@@ -2633,7 +2686,7 @@ function saveApt(){
   const conflict=findApptConflict(proId,date,time,proc.dur,EID);
   if(conflict){
     const cPat=getPat(conflict.patientId);
-    if(!confirm(`⚠️ Já existe um agendamento para este profissional neste horário: "${patDisp(conflict.patientId)||cPat.name}" às ${conflict.time}.\n\nDeseja salvar mesmo assim (encaixe)?`))return;
+    if(!await confirm(`⚠️ Já existe um agendamento para este profissional neste horário: "${patDisp(conflict.patientId)||cPat.name}" às ${conflict.time}.\n\nDeseja salvar mesmo assim (encaixe)?`))return;
   }
   const obj={patientId:patId,professionalId:proId,procedureId:procId,date,time,status:document.getElementById('apt-status').value,pay:document.getElementById('apt-pay').value,payst:document.getElementById('apt-payst').value,notes:document.getElementById('apt-notes').value,disc,finalVal};
   const apId=EID||uid();
@@ -2641,7 +2694,7 @@ function saveApt(){
   save('appointments');cm('apt');renderAgenda();if(activePage==='dashboard')renderDashboard();
   syncApptToGoogleCalendar(D.appointments.find(a=>a.id===apId));
 }
-function delApt(){if(!canDelete()||!pageEditable('agenda')||!confirm('Excluir?'))return;const obj=D.appointments.find(a=>a.id===EID);if(obj)logDeletion('appointment',obj);D.appointments=D.appointments.filter(a=>a.id!==EID);save('appointments');cm('apt');renderAgenda();if(obj)deleteGCalEvent(obj);}
+async function delApt(){if(!canDelete()||!pageEditable('agenda')||!await confirm('Excluir?'))return;const obj=D.appointments.find(a=>a.id===EID);if(obj)logDeletion('appointment',obj);D.appointments=D.appointments.filter(a=>a.id!==EID);save('appointments');cm('apt');renderAgenda();if(obj)deleteGCalEvent(obj);}
 function shareAptWhatsApp(){
   const patId=+document.getElementById('apt-pat').value,p=getPat(patId);
   const proc=getProc(+document.getElementById('apt-proc').value);
@@ -2766,14 +2819,14 @@ function openPat(id){
   document.getElementById('pt-del').style.display=(id&&canDelete()&&pageEditable('patients'))?'inline-flex':'none';
   om('pat');
 }
-function savePat(){
+async function savePat(){
   if(!canEdit()||!pageEditable('patients')){alert('Sem permissão.');return;}
   const name=document.getElementById('pt-name').value.trim();if(!name){alert('Nome obrigatório.');return;}
   const gv=id=>document.getElementById(id)?.value||'';
   const cpfRaw=gv('pt-cpf');
   // Validar duplicatas
   if(isDupName(D.patients,name,'name',EID)){
-    if(!confirm('⚠️ Já existe um paciente cadastrado com este nome.\n\nDeseja continuar mesmo assim?'))return;
+    if(!await confirm('⚠️ Já existe um paciente cadastrado com este nome.\n\nDeseja continuar mesmo assim?'))return;
   }
   if(cpfRaw && _normDoc(cpfRaw).length>=11 && isDupDoc(D.patients,cpfRaw,'cpf',EID)){
     alert('❌ Já existe um paciente cadastrado com este CPF.\n\nO CPF deve ser único. Verifique e tente novamente.');
@@ -2789,8 +2842,8 @@ function savePat(){
   EID?D.patients=D.patients.map(p=>p.id===EID?{...obj,id:EID}:p):D.patients.push({...obj,id:uid()});
   save('patients');cm('pat');renderPatients();
 }
-function delPat(){
-  if(!canDelete()||!pageEditable('patients')||!confirm('Excluir paciente? Todos os prontuários e visitas serão mantidos.'))return;
+async function delPat(){
+  if(!canDelete()||!pageEditable('patients')||!await confirm('Excluir paciente? Todos os prontuários e visitas serão mantidos.'))return;
   const obj=D.patients.find(p=>p.id===EID);if(obj)logDeletion('patient',obj);
   D.patients=D.patients.filter(p=>p.id!==EID);save('patients');cm('pat');renderPatients();
 }
@@ -3068,11 +3121,11 @@ function _updateToothObs(){
 // Duplo-check de propósito: "Limpar Tudo" apaga marcação de superfície, extração, observação
 // geral E todo o histórico cronológico do dente de uma vez, sem chance de desfazer — pedido
 // explícito do usuário depois de um susto real de sincronização (ver CLAUDE.md).
-function clearTooth(){
+async function clearTooth(){
   if(!_activeTooth)return;
   const t=_normTooth(currentOdonto[_activeTooth]);
   const hasAny=t.extracted||Object.values(t.surfaces).some(_surfHasContent)||t.obs||t.log.length;
-  if(hasAny && !confirm(`Limpar TUDO do dente ${_activeTooth} (${TN[_activeTooth]||''})?\n\nIsso apaga marcações de superfície, extração, observação geral e todo o histórico (${t.log.length} registro${t.log.length===1?'':'s'}). Não pode ser desfeito.`))return;
+  if(hasAny && !await confirm(`Limpar TUDO do dente ${_activeTooth} (${TN[_activeTooth]||''})?\n\nIsso apaga marcações de superfície, extração, observação geral e todo o histórico (${t.log.length} registro${t.log.length===1?'':'s'}). Não pode ser desfeito.`))return;
   delete currentOdonto[_activeTooth];
   document.getElementById('tooth-obs').value='';
   const logInput=document.getElementById('tooth-log-text');if(logInput)logInput.value='';
@@ -3261,8 +3314,8 @@ function saveVisit(){
   if(rd&&!D.returns.find(r=>r.patientId===patId&&r.date===rd)){D.returns.push({id:uid(),patientId:patId,date:rd,obs:obj.nextStep||'Retorno agendado',status:'pending'});save('returns');}
   save('visits');cm('visit');renderRecords(patId);
 }
-function delVisit(){
-  if(!canDelete()||!pageEditable('records')||!confirm('Excluir este atendimento?'))return;
+async function delVisit(){
+  if(!canDelete()||!pageEditable('records')||!await confirm('Excluir este atendimento?'))return;
   const oldVisit=D.visits.find(v=>v.id===EVS);
   if(oldVisit){
     const histEntry=buildAuditEntry('excluir',oldVisit,null);
@@ -3661,7 +3714,7 @@ function saveBud(){
   EID?D.budgets=D.budgets.map(b=>b.id===EID?{...obj,id:EID}:b):D.budgets.push({...obj,id:uid()});
   const _budPatId=patId; save('budgets');cm('bud');renderBudgets();
 }
-function delBud(){if(!canDelete()||!pageEditable('budgets')||!confirm('Excluir?'))return;const obj=D.budgets.find(b=>b.id===EID);if(obj)logDeletion('budget',obj);D.budgets=D.budgets.filter(b=>b.id!==EID);save('budgets');cm('bud');renderBudgets();}
+async function delBud(){if(!canDelete()||!pageEditable('budgets')||!await confirm('Excluir?'))return;const obj=D.budgets.find(b=>b.id===EID);if(obj)logDeletion('budget',obj);D.budgets=D.budgets.filter(b=>b.id!==EID);save('budgets');cm('bud');renderBudgets();}
 function renderBudgets(){
   fillBudSels();const filt=document.getElementById('bud-filter')?.value||'';
   const list=filt?D.budgets.filter(b=>b.patientId===+filt):D.budgets;
@@ -3876,7 +3929,7 @@ function savePresc(){
   EID?D.prescriptions=D.prescriptions.map(r=>r.id===EID?{...obj,id:EID}:r):D.prescriptions.push({...obj,id:uid()});
   save('prescriptions');cm('presc');renderPrescriptions();
 }
-function delPresc(){if(!canDelete()||!pageEditable('prescriptions')||!confirm('Excluir?'))return;const obj=D.prescriptions.find(r=>r.id===EID);if(obj)logDeletion('prescription',obj);D.prescriptions=D.prescriptions.filter(r=>r.id!==EID);save('prescriptions');cm('presc');renderPrescriptions();}
+async function delPresc(){if(!canDelete()||!pageEditable('prescriptions')||!await confirm('Excluir?'))return;const obj=D.prescriptions.find(r=>r.id===EID);if(obj)logDeletion('prescription',obj);D.prescriptions=D.prescriptions.filter(r=>r.id!==EID);save('prescriptions');cm('presc');renderPrescriptions();}
 function renderPrescriptions(){
   fillPrescSels();const filt=document.getElementById('presc-filter')?.value||'';
   const list=(filt?D.prescriptions.filter(r=>r.patientId===+filt):D.prescriptions).slice().sort((a,b)=>b.date.localeCompare(a.date));
@@ -4036,7 +4089,7 @@ function saveReceipt(){
   }
   save('receipts');cm('receipt');renderReceipts();
 }
-function delReceipt(){if(!canDelete()||!pageEditable('receipts')||!confirm('Excluir?'))return;const obj=D.receipts.find(r=>r.id===EID);if(obj)logDeletion('receipt',obj);D.receipts=D.receipts.filter(r=>r.id!==EID);save('receipts');cm('receipt');renderReceipts();}
+async function delReceipt(){if(!canDelete()||!pageEditable('receipts')||!await confirm('Excluir?'))return;const obj=D.receipts.find(r=>r.id===EID);if(obj)logDeletion('receipt',obj);D.receipts=D.receipts.filter(r=>r.id!==EID);save('receipts');cm('receipt');renderReceipts();}
 function renderReceipts(){
   fillReceiptSels();const filt=document.getElementById('receipt-filter')?.value||'';
   const list=(filt?D.receipts.filter(r=>r.patientId===+filt):D.receipts).slice().sort((a,b)=>b.date.localeCompare(a.date));
@@ -4115,7 +4168,7 @@ function saveRet(){
   EID?D.returns=D.returns.map(r=>r.id===EID?{...obj,id:EID}:r):D.returns.push({...obj,id:uid()});
   save('returns');cm('ret');renderReturns();
 }
-function delRet(){if(!canDelete()||!pageEditable('returns')||!confirm('Excluir?'))return;const obj=D.returns.find(r=>r.id===EID);if(obj)logDeletion('return',obj);D.returns=D.returns.filter(r=>r.id!==EID);save('returns');cm('ret');renderReturns();}
+async function delRet(){if(!canDelete()||!pageEditable('returns')||!await confirm('Excluir?'))return;const obj=D.returns.find(r=>r.id===EID);if(obj)logDeletion('return',obj);D.returns=D.returns.filter(r=>r.id!==EID);save('returns');cm('ret');renderReturns();}
 function shareRetWhatsApp(){const patId=+document.getElementById('ret-pat').value,p=getPat(patId),date=document.getElementById('ret-date').value,obs=document.getElementById('ret-obs').value,cfg=D.config||{};const msg=`Olá, ${patDisp(patId)}! 😊\nGostaríamos de lembrá-lo(a) do seu retorno:\n📅 ${new Date(date+'T00:00:00').toLocaleDateString('pt-BR')}\n🔁 ${obs}\n📍 ${cfg.name||'Consultório'}\n\nPor favor, confirme! Obrigado!`;const link=wa(p.phone,msg);if(link)window.open(link,'_blank');else alert('Telefone não cadastrado.');}
 function shareRetEmail(){const patId=+document.getElementById('ret-pat').value,p=getPat(patId),date=document.getElementById('ret-date').value,obs=document.getElementById('ret-obs').value,cfg=D.config||{};const subj=`Lembrete de Retorno — ${cfg.name||'Consultório'}`;const body=`Olá, ${patDisp(patId)}!\n\nLembrete do seu retorno:\nData: ${new Date(date+'T00:00:00').toLocaleDateString('pt-BR')}\nMotivo: ${obs}\nLocal: ${cfg.name||'Consultório'}\n\nAguardamos sua confirmação!\n${CU?.dispName||''}`;const link=emailLink(p.email,subj,body);if(link)window.open(link,'_blank');else alert('E-mail não cadastrado.');}
 function askReview(patientId){
@@ -4241,7 +4294,7 @@ function saveOtherPay(){
   EID?D.otherPayments=D.otherPayments.map(o=>o.id===EID?{...obj,id:EID}:o):D.otherPayments.push({...obj,id:uid()});
   save('otherPayments');cm('op');renderOtherPay();
 }
-function delOtherPay(){if(!canDelete()||!pageEditable('otherpay')||!confirm('Excluir?'))return;const obj=D.otherPayments.find(o=>o.id===EID);if(obj)logDeletion('otherPayment',obj);D.otherPayments=D.otherPayments.filter(o=>o.id!==EID);save('otherPayments');cm('op');renderOtherPay();}
+async function delOtherPay(){if(!canDelete()||!pageEditable('otherpay')||!await confirm('Excluir?'))return;const obj=D.otherPayments.find(o=>o.id===EID);if(obj)logDeletion('otherPayment',obj);D.otherPayments=D.otherPayments.filter(o=>o.id!==EID);save('otherPayments');cm('op');renderOtherPay();}
 
 // ─── STOCK (Insumos) ─────────────────────────────────────────
 let _skSort={key:'name',dir:1};
@@ -4290,7 +4343,7 @@ function saveSk(){if(!canEdit()||!pageEditable('stock'))return;const name=docume
   const obj={name,category:gv('sk-cat'),unit:gv('sk-unit'),supplierId:+gv('sk-sup')||0,cost:+gv('sk-cost'),qty:+gv('sk-qty'),minQty:+gv('sk-minqty'),exp:gv('sk-exp'),location:gv('sk-location')||'Consultório'};
   EID?D.stock=D.stock.map(s=>s.id===EID?{...obj,id:EID}:s):D.stock.push({...obj,id:uid()});
   save('stock');cm('sk');renderStock();}
-function delSk(){if(!canDelete()||!pageEditable('stock')||!confirm('Excluir?'))return;const obj=D.stock.find(s=>s.id===EID);if(obj)logDeletion('stock',obj);D.stock=D.stock.filter(s=>s.id!==EID);save('stock');cm('sk');renderStock();}
+async function delSk(){if(!canDelete()||!pageEditable('stock')||!await confirm('Excluir?'))return;const obj=D.stock.find(s=>s.id===EID);if(obj)logDeletion('stock',obj);D.stock=D.stock.filter(s=>s.id!==EID);save('stock');cm('sk');renderStock();}
 
 // ─── INSTRUMENTAL (equipamentos próprios dos profissionais) ─
 const EQ_COND_COLORS={'Novo':'#10b981','Bom':'#0ea5e9','Regular':'#f59e0b','Precisa manutenção':'#f97316','Quebrado':'#ef4444'};
@@ -4382,7 +4435,7 @@ function saveEq(){
   EID?D.equipment=D.equipment.map(e=>e.id===EID?{...obj,id:EID}:e):D.equipment.push({...obj,id:uid()});
   save('equipment');cm('eq');renderEquipment();
 }
-function delEq(){if(!canDelete()||!pageEditable('equipment')||!confirm('Excluir?'))return;const obj=D.equipment.find(e=>e.id===EID);if(obj)logDeletion('equipment',obj);D.equipment=D.equipment.filter(e=>e.id!==EID);save('equipment');cm('eq');renderEquipment();}
+async function delEq(){if(!canDelete()||!pageEditable('equipment')||!await confirm('Excluir?'))return;const obj=D.equipment.find(e=>e.id===EID);if(obj)logDeletion('equipment',obj);D.equipment=D.equipment.filter(e=>e.id!==EID);save('equipment');cm('eq');renderEquipment();}
 
 // ─── KITS DE INSTRUMENTAL ────────────────────────────────────
 function kitComposition(kitId){
@@ -4441,8 +4494,8 @@ function saveKit(){
   else D.kits.push({...obj,id:uid(),openIssues:[],checklog:[]});
   save('kits');cm('kit');renderKits();
 }
-function delKit(){
-  if(!canDelete()||!pageEditable('kits')||!confirm('Excluir kit? O instrumental vinculado a ele não é excluído, só volta a ficar avulso.'))return;
+async function delKit(){
+  if(!canDelete()||!pageEditable('kits')||!await confirm('Excluir kit? O instrumental vinculado a ele não é excluído, só volta a ficar avulso.'))return;
   const obj=D.kits.find(k=>k.id===EID);if(!obj)return;
   logDeletion('kit',obj);
   D.equipment=D.equipment.map(e=>e.kitId===EID?{...e,kitId:0}:e);
@@ -4545,12 +4598,12 @@ function renderOrdersList(){document.getElementById('sup-orders-wrap').innerHTML
   `<div class="form-sec">Histórico (${tempOrders.length})</div><table class="tbl"><thead><tr><th>Data</th><th>Itens</th><th>Valor</th></tr></thead><tbody>
   ${tempOrders.map(o=>`<tr><td style="font-size:11.5px">${new Date(o.date+'T00:00:00').toLocaleDateString('pt-BR')}</td><td style="font-size:12px">${o.items}</td><td style="font-weight:700;color:var(--P)">${fmt(o.val)}</td></tr>`).join('')}</tbody></table>`;}
 function addOrder(){const date=document.getElementById('sup-ord-date').value,val=+document.getElementById('sup-ord-val').value||0,items=document.getElementById('sup-ord-items').value.trim();if(!date||!items)return;tempOrders.unshift({id:uid(),date,val,items});document.getElementById('sup-ord-val').value='';document.getElementById('sup-ord-items').value='';renderOrdersList();}
-function saveSup(){if(!canEdit()||!pageEditable('suppliers'))return;const name=document.getElementById('sup-name').value.trim();if(!name)return;
+async function saveSup(){if(!canEdit()||!pageEditable('suppliers'))return;const name=document.getElementById('sup-name').value.trim();if(!name)return;
   const gv=id=>document.getElementById(id)?.value||'';
   const docRaw=gv('sup-doc');
   // Validar duplicatas
   if(isDupName(D.suppliers,name,'name',editSupId)){
-    if(!confirm('⚠️ Já existe um fornecedor cadastrado com este nome.\n\nDeseja continuar mesmo assim?'))return;
+    if(!await confirm('⚠️ Já existe um fornecedor cadastrado com este nome.\n\nDeseja continuar mesmo assim?'))return;
   }
   if(docRaw && _normDoc(docRaw).length>=11 && isDupDoc(D.suppliers,docRaw,'doc',editSupId)){
     alert('❌ Já existe um fornecedor cadastrado com este CNPJ/CPF.\n\nO documento deve ser único. Verifique e tente novamente.');
@@ -4559,7 +4612,7 @@ function saveSup(){if(!canEdit()||!pageEditable('suppliers'))return;const name=d
   const obj={name,doc:gv('sup-doc'),seg:gv('sup-seg'),phone:gv('sup-phone').replace(/\D/g,''),email:gv('sup-email'),rep:gv('sup-rep'),site:gv('sup-site'),addr:gv('sup-addr'),notes:gv('sup-notes'),orders:tempOrders};
   editSupId?D.suppliers=D.suppliers.map(s=>s.id===editSupId?{...obj,id:editSupId}:s):D.suppliers.push({...obj,id:uid()});
   save('suppliers');cm('sup');renderSuppliers();}
-function delSup(){if(!canDelete()||!pageEditable('suppliers')||!confirm('Excluir?'))return;const obj=D.suppliers.find(s=>s.id===editSupId);if(obj)logDeletion('supplier',obj);D.suppliers=D.suppliers.filter(s=>s.id!==editSupId);save('suppliers');cm('sup');renderSuppliers();}
+async function delSup(){if(!canDelete()||!pageEditable('suppliers')||!await confirm('Excluir?'))return;const obj=D.suppliers.find(s=>s.id===editSupId);if(obj)logDeletion('supplier',obj);D.suppliers=D.suppliers.filter(s=>s.id!==editSupId);save('suppliers');cm('sup');renderSuppliers();}
 function renderSuppliers(){
   const q=(document.getElementById('sup-search')?.value||'').toLowerCase().trim();
   const qd=q.replace(/\D/g,'');
@@ -4593,24 +4646,24 @@ function openPro(id){if((!canAdmin()||!pageEditable('professionals'))&&!id)retur
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('pr-fullname',p.fullName);sv('pr-dispname',p.dispName);sv('pr-role',p.role||D.roles[0]);sv('pr-phone',p.phone);sv('pr-email',p.email);sv('pr-comm',p.commission||0);sv('pr-daily',p.daily||0);sv('pr-profile',p.profile||'editor');document.getElementById('pr-color').value=p.color||'#0ea5e9';
   document.getElementById('pr-del').style.display=(id&&canDelete()&&pageEditable('professionals'))?'inline-flex':'none';om('pro');}
-function savePro(){if(!canAdmin()||!pageEditable('professionals'))return;const dn=document.getElementById('pr-dispname').value.trim();if(!dn)return;
+async function savePro(){if(!canAdmin()||!pageEditable('professionals'))return;const dn=document.getElementById('pr-dispname').value.trim();if(!dn)return;
   const gv=id=>document.getElementById(id)?.value||'';
   const fullName=gv('pr-fullname').trim();
   const email=gv('pr-email').trim().toLowerCase();
   if(!email){alert('Informe o e-mail Google do profissional — é por ele que o login acontece agora.');return;}
   // Validar duplicatas
   if(isDupName(D.professionals,dn,'dispName',EID)){
-    if(!confirm('⚠️ Já existe um profissional com este nome de exibição.\n\nDeseja continuar mesmo assim?'))return;
+    if(!await confirm('⚠️ Já existe um profissional com este nome de exibição.\n\nDeseja continuar mesmo assim?'))return;
   }
   if(fullName && isDupName(D.professionals,fullName,'fullName',EID)){
-    if(!confirm('⚠️ Já existe um profissional com este nome completo.\n\nDeseja continuar mesmo assim?'))return;
+    if(!await confirm('⚠️ Já existe um profissional com este nome completo.\n\nDeseja continuar mesmo assim?'))return;
   }
   const emailInUse=D.professionals.some(p=>p.id!==EID&&(p.email||'').toLowerCase()===email);
   if(emailInUse){alert('Esse e-mail já está em uso por outro profissional.');return;}
   const obj={fullName,dispName:dn,role:gv('pr-role'),phone:gv('pr-phone').replace(/\D/g,''),email,commission:+gv('pr-comm'),daily:+gv('pr-daily'),color:gv('pr-color'),profile:gv('pr-profile')};
   EID?D.professionals=D.professionals.map(p=>p.id===EID?{...obj,id:EID}:p):D.professionals.push({...obj,id:uid()});
   save('professionals');cm('pro');renderProfessionals();}
-function delPro(){if(!canDelete()||!pageEditable('professionals')||D.professionals.length<=1||!confirm('Excluir?'))return;const obj=D.professionals.find(p=>p.id===EID);if(obj)logDeletion('professional',obj);D.professionals=D.professionals.filter(p=>p.id!==EID);save('professionals');cm('pro');renderProfessionals();}
+async function delPro(){if(!canDelete()||!pageEditable('professionals')||D.professionals.length<=1||!await confirm('Excluir?'))return;const obj=D.professionals.find(p=>p.id===EID);if(obj)logDeletion('professional',obj);D.professionals=D.professionals.filter(p=>p.id!==EID);save('professionals');cm('pro');renderProfessionals();}
 function renderProfessionals(){
   const q=(document.getElementById('pro-search')?.value||'').toLowerCase().trim();
   const qd=q.replace(/\D/g,'');
@@ -4667,7 +4720,7 @@ function renderAdmin(){
   renderCfgLogoPreview();
 }
 function addRole(){if(!canAdmin()||!pageEditable('admin'))return;const v=document.getElementById('new-role-inp').value.trim();if(!v||D.roles.includes(v))return;D.roles.push(v);save('roles');document.getElementById('new-role-inp').value='';renderAdmin();}
-function removeRole(i){if(!canAdmin()||!pageEditable('admin')||!confirm('Remover cargo?'))return;D.roles.splice(i,1);save('roles');renderAdmin();}
+async function removeRole(i){if(!canAdmin()||!pageEditable('admin')||!await confirm('Remover cargo?'))return;D.roles.splice(i,1);save('roles');renderAdmin();}
 function saveCfg(){
   D.config={name:document.getElementById('cfg-name').value,phone:document.getElementById('cfg-phone').value,addr:document.getElementById('cfg-addr').value,cro:document.getElementById('cfg-cro').value,taxId:document.getElementById('cfg-taxid').value,googleReviewLink:document.getElementById('cfg-review-link').value.trim(),accentColor:document.getElementById('cfg-color').value,logo:D.config?.logo||''};
   save('config');alert('Configurações salvas!');
@@ -4710,7 +4763,7 @@ function saveProc(){if(!canAdmin()||!pageEditable('admin'))return;const name=doc
   const obj={name,code:document.getElementById('proc-code').value.trim(),price:+document.getElementById('proc-price').value||0,cost:+document.getElementById('proc-cost').value||0,profcost:+document.getElementById('proc-profcost').value||0,dur:+document.getElementById('proc-dur').value||60};
   EID?D.procs=D.procs.map(p=>p.id===EID?{...obj,id:EID}:p):D.procs.push({...obj,id:uid()});
   save('procs');cm('proc');renderAdmin();}
-function delProc(){if(!canDelete()||!pageEditable('admin')||!confirm('Excluir procedimento?'))return;const obj=D.procs.find(p=>p.id===EID);if(obj)logDeletion('procedure',obj);D.procs=D.procs.filter(p=>p.id!==EID);save('procs');cm('proc');renderAdmin();}
+async function delProc(){if(!canDelete()||!pageEditable('admin')||!await confirm('Excluir procedimento?'))return;const obj=D.procs.find(p=>p.id===EID);if(obj)logDeletion('procedure',obj);D.procs=D.procs.filter(p=>p.id!==EID);save('procs');cm('proc');renderAdmin();}
 
 // ─── IMPORT/EXPORT CSV/EXCEL + BACKUP JSON ──────────────────
 
@@ -5122,17 +5175,17 @@ function doBackupFull(){
 }
 
 // ── Full Restore JSON ──
-function doRestoreFull(evt){
+async function doRestoreFull(evt){
   const file=evt.target.files[0];if(!file)return;
-  if(!confirm('⚠️ ATENÇÃO: Isso substituirá TODOS os dados atuais do sistema.\n\nDeseja continuar?')){evt.target.value='';return;}
+  if(!await confirm('⚠️ ATENÇÃO: Isso substituirá TODOS os dados atuais do sistema.\n\nDeseja continuar?')){evt.target.value='';return;}
   const reader=new FileReader();
-  reader.onload=e=>{
+  reader.onload=async e=>{
     try{
       const json=JSON.parse(e.target.result);
       const d=json.data||json;
       if(!d.patients&&!d.professionals){alert('Arquivo de backup inválido. Não contém dados reconhecíveis.');return;}
       Object.keys(d).forEach(k=>{D[k]=d[k];save(k);});
-      alert('✅ Backup restaurado com sucesso! A página será recarregada.');
+      await alert('✅ Backup restaurado com sucesso! A página será recarregada.');
       location.reload();
     }catch(err){alert('Arquivo inválido: '+err.message);}
   };
@@ -5154,9 +5207,9 @@ function autoBackup(){const now=Date.now(),last=+localStorage.getItem('og3_last_
 
 // ─── CLEAR DEMO DATA ───────────────────────────────────────
 const DEMO_IDS={patients:[1,2],appointments:[1,2],visits:[1],budgets:[1],returns:[1],stock:[1,2,3,4,5]};
-function clearDemoData() {
+async function clearDemoData() {
   if (!canDelete()) { alert('Sem permissão.'); return; }
-  if (!confirm('⚠️ Apagar os dados de demonstração (os que já vêm de fábrica no app)?\n\nSeus pacientes, agendamentos e outros registros reais NÃO são afetados — só o que é exemplo.\n\nConfirma?')) return;
+  if (!await confirm('⚠️ Apagar os dados de demonstração (os que já vêm de fábrica no app)?\n\nSeus pacientes, agendamentos e outros registros reais NÃO são afetados — só o que é exemplo.\n\nConfirma?')) return;
   Object.keys(DEMO_IDS).forEach(k => {
     D[k] = (D[k]||[]).filter(rec => !DEMO_IDS[k].includes(rec.id));
     save(k);
@@ -5512,9 +5565,9 @@ function attViewerDownload() {
   document.body.removeChild(a);
 }
 
-function attViewerDelete() {
+async function attViewerDelete() {
   if ((!canEdit() && !canAdmin()) || !pageEditable('records')) { alert('Sem permissão.'); return; }
-  if (!confirm('Excluir este anexo?')) return;
+  if (!await confirm('Excluir este anexo?')) return;
   const { attachments, index, visitId, mode } = attViewerData;
 
   attachments.splice(index, 1);
@@ -6851,7 +6904,7 @@ function addNotifLog(type,recipient,message,status){
   if(log.length>200)log.length=200;
   LS.set('notifLog',log);
 }
-function clearNotifLog(){if(!confirm('Limpar todo o log?'))return;LS.set('notifLog',[]);renderNotifications();}
+async function clearNotifLog(){if(!await confirm('Limpar todo o log?'))return;LS.set('notifLog',[]);renderNotifications();}
 
 function fillNotifTpl(tplKey,vars){
   const cfg=getNotifConfig();
@@ -7203,8 +7256,8 @@ function saveClinic(){
   saveClinics(clinics);cm('clinic');updateClinicSelector();renderClinics();
 }
 
-function delClinic(){
-  if(!canDelete()||!pageEditable('clinics')||!EID||!confirm('Excluir esta clínica? Todos os dados serão perdidos!'))return;
+async function delClinic(){
+  if(!canDelete()||!pageEditable('clinics')||!EID||!await confirm('Excluir esta clínica? Todos os dados serão perdidos!'))return;
   let clinics=getClinics();
   const c=clinics.find(x=>x.id===EID);
   if(c?.isDefault){alert('Não é possível excluir a clínica padrão.');return;}
