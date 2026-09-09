@@ -839,6 +839,9 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div class="row-flex"><div><div class="s-title">Administração</div><div class="s-sub">Usuários, cargos e configurações</div></div></div>
   <div class="g2">
     <div class="card"><div class="card-hd"><span class="nav-icon" data-ico="professionals"></span> Usuários</div><div id="admin-users"></div></div>
+    <div class="card"><div class="card-hd"><span class="nav-icon" data-ico="lock"></span> Permissões</div>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:8px">Defina, por profissional, o acesso a cada página do sistema (Completo, Só Visualizar ou Oculto).</div>
+      <div id="admin-perms"></div></div>
     <div class="card"><div class="card-hd"><span class="nav-icon" data-ico="tag"></span> Cargos</div><div id="admin-roles"></div>
       <div style="display:flex;gap:8px;margin-top:10px"><input class="inp" id="new-role-inp" placeholder="Novo cargo..."/><button class="btn btn-p btn-sm" onclick="addRole()">+</button></div></div>
     <div class="card" style="border:2px solid #fee2e2">
@@ -1651,6 +1654,16 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   </div>
 </div></div>
 
+<div class="overlay" id="m-perms" style="display:none" onclick="if(event.target===this)cm('perms')">
+<div class="modal" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto">
+  <div class="modal-title" id="m-perms-t">Permissões</div>
+  <div id="perms-body"></div>
+  <div class="modal-footer">
+    <button class="btn btn-o" onclick="cm('perms')">Cancelar</button>
+    <button class="btn btn-p" onclick="savePerms()">Salvar</button>
+  </div>
+</div></div>
+
 <!-- ── Modal: Histórico de Alterações (Audit Log) ── -->
 <div class="overlay" id="m-audit" style="display:none" onclick="if(event.target===this)cm('audit')">
 <div class="modal modal-lg" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto">
@@ -1801,8 +1814,14 @@ const canAdmin=()=>CU&&['dev','admin','coadmin','editor'].includes(CU.profile);
 // Exclusão de registros é restrita ao Administrador (mais estrito que canAdmin(), que também
 // inclui Gestora/Gerente) — decisão explícita do usuário, com registro de auditoria (ver
 // logDeletion() e D._auditDeleted) pra todo apagamento no sistema.
-const canDelete=()=>CU&&['dev','admin'].includes(CU.profile);
+// canDeleteOverride: liberação individual (não por cargo) — Admin concede pessoa a pessoa na
+// tela de Permissões, sem alterar a regra padrão (só admin/dev exclui) pra ninguém mais.
+const canDelete=()=>CU&&(['dev','admin'].includes(CU.profile)||CU.canDeleteOverride===true);
 const isDev=()=>CU&&CU.profile==='dev';
+// Permissões por página (Fase 3) — CU.pageAccess é opcional; ausente = comportamento atual,
+// sem restrição (aditivo, regressão zero pra profissional já cadastrado sem esse campo).
+const canAccessPage=(page)=>{const pa=CU?.pageAccess?.[page];return pa!=='hidden';};
+const pageEditable=(page)=>{const pa=CU?.pageAccess?.[page];return pa!=='view'&&pa!=='hidden';};
 
 // Patient balance (total owed - total paid across visits)
 function patBalance(patId){
@@ -2016,6 +2035,7 @@ function enterApp(pro){
   if(canAdmin()){ const n=document.getElementById('nav-admin'); if(n) n.style.display='flex'; }
   if(isDev()||canAdmin()){ const n=document.getElementById('nav-backup'); if(n) n.style.display='flex'; }
   applyPermissions();
+  applyPagePermissions();
   renderDashboard();
   if(CU.googleCalendarSync) setTimeout(syncPendingGCalEvents, 1500);
 }
@@ -2035,6 +2055,70 @@ function applyPermissions(){
   if(!canEdit()){
     ['btn-new-apt','btn-new-pat','btn-new-rec','btn-new-bud','btn-new-ret','btn-new-sk','btn-new-sup','btn-new-pro','btn-new-op'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   }
+}
+// Fase 3 — esconde item de menu (e a aba "Kits", que não tem nav-btn próprio) quando
+// pageAccess='hidden' pro profissional logado. Só esconde, nunca mostra — não interfere com a
+// lógica de nav-admin/nav-backup (canAdmin()/isDev()) que já roda antes disso em enterApp().
+const BTN_NEW_PAGE={'btn-new-apt':'agenda','btn-new-pat':'patients','btn-new-rec':'records','btn-new-bud':'budgets','btn-new-presc':'prescriptions','btn-new-receipt':'receipts','btn-new-ret':'returns','btn-new-op':'otherpay','btn-new-sk':'stock','btn-new-eq':'equipment','btn-new-kit':'kits','btn-new-sup':'suppliers','btn-new-pro':'professionals'};
+function applyPagePermissions(){
+  document.querySelectorAll('.nav-btn[onclick]').forEach(btn=>{
+    const m=btn.getAttribute('onclick').match(/go\('([^']+)'\)/);
+    if(m&&!canAccessPage(m[1])) btn.style.display='none';
+  });
+  const kt=document.getElementById('eqtab-kits');
+  if(kt&&!canAccessPage('kits')) kt.style.display='none';
+  // "view": não esconde a página (canAccessPage segue true), mas os botões "+ Novo X" não fazem
+  // sentido pra quem só pode visualizar — cada open*() já bloqueia por baixo (pageEditable), isso
+  // só evita o botão "morto" na tela.
+  Object.entries(BTN_NEW_PAGE).forEach(([id,page])=>{
+    if(!pageEditable(page)){const el=document.getElementById(id);if(el)el.style.display='none';}
+  });
+}
+// Tela de Permissões (Admin) — mesma ordem do menu lateral; 'kits' logo após 'equipment'
+// (sub-tela dentro de Instrumental, ver applyPagePermissions/setEqTab acima). 'dashboard' fica
+// de fora de propósito: é a home, nunca configurável (evita lockout/loop no guard de go()).
+const PAGE_PERMS=[
+  {key:'agenda',label:'Agenda'},{key:'patients',label:'Pacientes'},{key:'records',label:'Prontuário'},
+  {key:'budgets',label:'Orçamentos'},{key:'prescriptions',label:'Receituário'},{key:'receipts',label:'Recibos'},
+  {key:'returns',label:'Retornos'},{key:'finance',label:'Financeiro'},{key:'otherpay',label:'Outros Pgtos'},
+  {key:'stock',label:'Estoque'},{key:'equipment',label:'Instrumental'},{key:'kits',label:'↳ Kits'},
+  {key:'shopping',label:'Lista Compras'},{key:'suppliers',label:'Fornecedores'},{key:'professionals',label:'Profissionais'},
+  {key:'clinics',label:'Clínicas'},{key:'notifications',label:'Notificações'},{key:'reports',label:'Relatórios'},
+  {key:'advreports',label:'PDF Avançado'},{key:'messages',label:'Mensagens'},{key:'admin',label:'Admin'},{key:'backup',label:'Backup'}
+];
+let _permsProId=null;
+function openPerms(id){
+  if(!canAdmin())return;
+  _permsProId=id;
+  const p=D.professionals.find(x=>x.id===id);if(!p)return;
+  document.getElementById('m-perms-t').textContent='Permissões — '+p.dispName;
+  const pa=p.pageAccess||{};
+  const isAdminProfile=['dev','admin'].includes(p.profile);
+  const delOverrideHtml=`<label style="display:flex;align-items:center;gap:8px;padding:8px 0 12px;border-bottom:2px solid #e2e8f0;margin-bottom:6px;${isAdminProfile?'opacity:.55':''}">
+    <input type="checkbox" id="perms-del-override" ${p.canDeleteOverride?'checked':''} ${isAdminProfile?'disabled':''}/>
+    <span style="font-size:13px">🗑️ Permitir exclusão de registros (mesmo sem ser Administrador)${isAdminProfile?' — já é Administrador':''}</span>
+  </label>`;
+  document.getElementById('perms-body').innerHTML=delOverrideHtml+PAGE_PERMS.map(pg=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f1f5f9">
+      <span style="font-size:13px">${pg.label}</span>
+      <select class="inp perms-sel" data-page="${pg.key}" style="width:160px">
+        <option value="full"${(!pa[pg.key]||pa[pg.key]==='full')?' selected':''}>Completo</option>
+        <option value="view"${pa[pg.key]==='view'?' selected':''}>Só Visualizar</option>
+        <option value="hidden"${pa[pg.key]==='hidden'?' selected':''}>Oculto</option>
+      </select>
+    </div>`).join('');
+  om('perms');
+}
+function savePerms(){
+  if(!canAdmin()||!_permsProId)return;
+  const pageAccess={};
+  document.querySelectorAll('.perms-sel').forEach(sel=>{
+    if(sel.value!=='full')pageAccess[sel.dataset.page]=sel.value; // 'full' = ausente, comportamento atual
+  });
+  const canDeleteOverride=document.getElementById('perms-del-override')?.checked||false;
+  D.professionals=D.professionals.map(x=>x.id===_permsProId?{...x,pageAccess,canDeleteOverride}:x);
+  save('professionals');cm('perms');renderAdmin();
+  if(CU&&CU.id===_permsProId){CU=D.professionals.find(x=>x.id===_permsProId);applyPagePermissions();}
 }
 
 // ─── NAV ───────────────────────────────────────────────────
@@ -2068,6 +2152,7 @@ const OG_ICO = {
   trash:'<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
   history:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
   wrench:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   equipment:'<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/>',
   whatsapp:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
   trendingDown:'<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>'
@@ -2144,6 +2229,7 @@ function toggleTema(){
 }
 
 function go(page){
+  if(page!=='dashboard'&&!canAccessPage(page)){alert('Sem permissão para acessar esta página.');if(activePage!=='dashboard')go('dashboard');return;}
   const prevPage=activePage;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
@@ -2508,7 +2594,7 @@ function saveAptQuickAdd(){
   selectAptPat(p.id);
 }
 function openApt(id,prePatientId){
-  if(!canEdit()&&!id)return;
+  if((!canEdit()||!pageEditable('agenda'))&&!id)return;
   EID=id||null;fillAptSels();
   document.getElementById('m-apt-t').textContent=id?'Editar Agendamento':'Novo Agendamento';
   const a=id?D.appointments.find(x=>x.id===id):{};
@@ -2522,9 +2608,9 @@ function openApt(id,prePatientId){
   sv('apt-status',a.status||'scheduled');sv('apt-pay',a.pay||'pix');sv('apt-payst',a.payst||'pending');
   sv('apt-notes',a.notes);sv('apt-disc',a.disc||0);
   calcAptTotal();
-  const rdonly=!canEdit();
+  const rdonly=!canEdit()||!pageEditable('agenda');
   ['apt-pat-search','apt-pro','apt-proc','apt-date','apt-time','apt-status','apt-pay','apt-payst','apt-disc','apt-notes'].forEach(i=>{const el=document.getElementById(i);if(el)el.disabled=rdonly;});
-  document.getElementById('apt-del').style.display=(id&&canDelete())?'inline-flex':'none';
+  document.getElementById('apt-del').style.display=(id&&canDelete()&&pageEditable('agenda'))?'inline-flex':'none';
   om('apt');
 }
 function _timeToMin(t){const[h,m]=t.split(':').map(Number);return h*60+m;}
@@ -2537,7 +2623,7 @@ function findApptConflict(profId,date,time,durMin,excludeId){
   });
 }
 function saveApt(){
-  if(!canEdit()){alert('Sem permissão.');return;}
+  if(!canEdit()||!pageEditable('agenda')){alert('Sem permissão.');return;}
   const patId=+document.getElementById('apt-pat').value,proId=+document.getElementById('apt-pro').value,procId=+document.getElementById('apt-proc').value;
   if(!patId||!proId||!procId){alert('Preencha paciente, profissional e procedimento.');return;}
   const disc=+document.getElementById('apt-disc').value||0;
@@ -2555,7 +2641,7 @@ function saveApt(){
   save('appointments');cm('apt');renderAgenda();if(activePage==='dashboard')renderDashboard();
   syncApptToGoogleCalendar(D.appointments.find(a=>a.id===apId));
 }
-function delApt(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.appointments.find(a=>a.id===EID);if(obj)logDeletion('appointment',obj);D.appointments=D.appointments.filter(a=>a.id!==EID);save('appointments');cm('apt');renderAgenda();if(obj)deleteGCalEvent(obj);}
+function delApt(){if(!canDelete()||!pageEditable('agenda')||!confirm('Excluir?'))return;const obj=D.appointments.find(a=>a.id===EID);if(obj)logDeletion('appointment',obj);D.appointments=D.appointments.filter(a=>a.id!==EID);save('appointments');cm('apt');renderAgenda();if(obj)deleteGCalEvent(obj);}
 function shareAptWhatsApp(){
   const patId=+document.getElementById('apt-pat').value,p=getPat(patId);
   const proc=getProc(+document.getElementById('apt-proc').value);
@@ -2675,13 +2761,13 @@ function openPat(id){
   sv('pt-name',p.name);sv('pt-social',p.social);sv('pt-cpf',p.cpf);sv('pt-dob',p.dob);sv('pt-gender',p.gender);sv('pt-source',p.source);
   sv('pt-phone',p.phone);sv('pt-email',p.email);sv('pt-addr',p.addr);
   sv('pt-blood',p.bloodType);sv('pt-allerg',p.allergies);sv('pt-meds',p.meds);sv('pt-comorb',p.comorb);sv('pt-notes',p.notes);
-  const rdonly=!canEdit();
+  const rdonly=!canEdit()||!pageEditable('patients');
   document.querySelectorAll('#m-pat .inp').forEach(el=>el.disabled=rdonly);
-  document.getElementById('pt-del').style.display=(id&&canDelete())?'inline-flex':'none';
+  document.getElementById('pt-del').style.display=(id&&canDelete()&&pageEditable('patients'))?'inline-flex':'none';
   om('pat');
 }
 function savePat(){
-  if(!canEdit()){alert('Sem permissão.');return;}
+  if(!canEdit()||!pageEditable('patients')){alert('Sem permissão.');return;}
   const name=document.getElementById('pt-name').value.trim();if(!name){alert('Nome obrigatório.');return;}
   const gv=id=>document.getElementById(id)?.value||'';
   const cpfRaw=gv('pt-cpf');
@@ -2704,7 +2790,7 @@ function savePat(){
   save('patients');cm('pat');renderPatients();
 }
 function delPat(){
-  if(!canDelete()||!confirm('Excluir paciente? Todos os prontuários e visitas serão mantidos.'))return;
+  if(!canDelete()||!pageEditable('patients')||!confirm('Excluir paciente? Todos os prontuários e visitas serão mantidos.'))return;
   const obj=D.patients.find(p=>p.id===EID);if(obj)logDeletion('patient',obj);
   D.patients=D.patients.filter(p=>p.id!==EID);save('patients');cm('pat');renderPatients();
 }
@@ -3071,7 +3157,7 @@ function renderRecords(forcePatId){
   if(oContainer){const tmp=document.createElement('div');tmp.id='od-tmp-'+patId;oContainer.appendChild(tmp);const fakeOdo={};visits.forEach(v=>{if(v.odonto)Object.assign(fakeOdo,v.odonto);});buildOdonto('od-tmp-'+patId,fakeOdo);}
 }
 function openNewVisit(prePatId){
-  if(!canEdit())return;
+  if(!canEdit()||!pageEditable('records'))return;
   EVS=null;currentOdonto={};
   document.getElementById('v-pat').innerHTML='<option value="">Selecione...</option>'+D.patients.map(p=>`<option value="${p.id}">${patDisp(p.id)||p.name}</option>`).join('');
   document.getElementById('v-pro').innerHTML='<option value="">Selecione...</option>'+D.professionals.map(p=>`<option value="${p.id}">${p.dispName}</option>`).join('');
@@ -3095,7 +3181,7 @@ function openNewVisit(prePatId){
   }
 }
 function editVisit(id){
-  if(!canEdit())return;
+  if(!canEdit()||!pageEditable('records'))return;
   EVS=id;
   const v=D.visits.find(x=>x.id===id);if(!v)return;
   currentOdonto=v.odonto?JSON.parse(JSON.stringify(v.odonto)):{};
@@ -3110,7 +3196,7 @@ function editVisit(id){
   (v.materials||[]).forEach(m=>addMatRow('v-mats',m.stockId,m.qty));
   (v.otherMaterials||[]).forEach(m=>addOtherMatRowFill(m));
   calcVisitVal();
-  document.getElementById('v-del').style.display=canDelete()?'inline-flex':'none';
+  document.getElementById('v-del').style.display=(canDelete()&&pageEditable('records'))?'inline-flex':'none';
   document.getElementById('m-visit-t').textContent='Editar Atendimento';
   tempVisitPhotos=JSON.parse(JSON.stringify(v.photos||[]));renderVisitPhotosPreview();
   tempVisitAttachments=JSON.parse(JSON.stringify(v.attachments||[]));renderAttachmentsPreview();checkStorageWarning();
@@ -3152,7 +3238,7 @@ function addOtherMatRowFill(m){
   last.querySelector('.om-cost').value=m.cost||0;
 }
 function saveVisit(){
-  if(!canEdit()){alert('Sem permissão.');return;}
+  if(!canEdit()||!pageEditable('records')){alert('Sem permissão.');return;}
   const patId=+document.getElementById('v-pat').value;if(!patId){alert('Selecione paciente.');return;}
   const mats=[...document.querySelectorAll('#v-mats > div:not(.other-mat-row)')].map(r=>({stockId:+r.querySelector('.mat-sk').value,qty:+r.querySelector('.mat-qty').value})).filter(m=>m.stockId>0);
   const otherMats=[...document.querySelectorAll('#v-mats .other-mat-row')].map(r=>({name:r.querySelector('.om-name').value,qty:+r.querySelector('.om-qty').value||1,cost:+r.querySelector('.om-cost').value||0})).filter(m=>m.name.trim());
@@ -3176,7 +3262,7 @@ function saveVisit(){
   save('visits');cm('visit');renderRecords(patId);
 }
 function delVisit(){
-  if(!canDelete()||!confirm('Excluir este atendimento?'))return;
+  if(!canDelete()||!pageEditable('records')||!confirm('Excluir este atendimento?'))return;
   const oldVisit=D.visits.find(v=>v.id===EVS);
   if(oldVisit){
     const histEntry=buildAuditEntry('excluir',oldVisit,null);
@@ -3559,23 +3645,23 @@ function calcBudTotal(){
   return{total,discVal};
 }
 function openBud(id){
-  if(!canEdit()&&!id)return;EID=id||null;fillBudSels();
+  if((!canEdit()||!pageEditable('budgets'))&&!id)return;EID=id||null;fillBudSels();
   const b=id?D.budgets.find(x=>x.id===id):{};
   document.getElementById('m-bud-t').textContent=id?'Editar Orçamento':'Novo Orçamento';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('bud-pat',b.patientId);sv('bud-pro',b.professionalId||CU?.id);sv('bud-date',b.date||today());sv('bud-valid',b.validUntil);sv('bud-pay',b.payMethod||'');sv('bud-notes',b.notes);sv('bud-paid',b.paid||0);sv('bud-disc',b.disc||0);sv('bud-status',b.status||'active');
   document.getElementById('bud-items').innerHTML='';(b.items||[]).forEach(i=>addBudItem(i.procedureId,i.qty,i.professionalId||0));
-  calcBudTotal();document.getElementById('bud-del').style.display=(id&&canDelete())?'inline-flex':'none';om('bud');
+  calcBudTotal();document.getElementById('bud-del').style.display=(id&&canDelete()&&pageEditable('budgets'))?'inline-flex':'none';om('bud');
 }
 function saveBud(){
-  if(!canEdit())return;const patId=+document.getElementById('bud-pat').value;if(!patId){alert('Selecione paciente.');return;}
+  if(!canEdit()||!pageEditable('budgets'))return;const patId=+document.getElementById('bud-pat').value;if(!patId){alert('Selecione paciente.');return;}
   const items=[...document.querySelectorAll('#bud-items > div')].map(r=>({procedureId:+r.querySelector('.bud-proc').value,qty:+r.querySelector('.bud-qty').value||1,professionalId:+r.querySelector('.bud-item-pro')?.value||0})).filter(i=>i.procedureId>0);
   const{total,discVal}=calcBudTotal();
   const obj={patientId:patId,professionalId:+document.getElementById('bud-pro').value,date:document.getElementById('bud-date').value,validUntil:document.getElementById('bud-valid').value,payMethod:document.getElementById('bud-pay').value,notes:document.getElementById('bud-notes').value,items,total,disc:+document.getElementById('bud-disc').value||0,discVal,paid:+document.getElementById('bud-paid').value||0,status:document.getElementById('bud-status').value};
   EID?D.budgets=D.budgets.map(b=>b.id===EID?{...obj,id:EID}:b):D.budgets.push({...obj,id:uid()});
   const _budPatId=patId; save('budgets');cm('bud');renderBudgets();
 }
-function delBud(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.budgets.find(b=>b.id===EID);if(obj)logDeletion('budget',obj);D.budgets=D.budgets.filter(b=>b.id!==EID);save('budgets');cm('bud');renderBudgets();}
+function delBud(){if(!canDelete()||!pageEditable('budgets')||!confirm('Excluir?'))return;const obj=D.budgets.find(b=>b.id===EID);if(obj)logDeletion('budget',obj);D.budgets=D.budgets.filter(b=>b.id!==EID);save('budgets');cm('bud');renderBudgets();}
 function renderBudgets(){
   fillBudSels();const filt=document.getElementById('bud-filter')?.value||'';
   const list=filt?D.budgets.filter(b=>b.patientId===+filt):D.budgets;
@@ -3774,23 +3860,23 @@ function addPrescItem(text){
   document.getElementById('presc-items').appendChild(div);
 }
 function openPresc(id){
-  if(!canEdit()&&!id)return;EID=id||null;fillPrescSels();
+  if((!canEdit()||!pageEditable('prescriptions'))&&!id)return;EID=id||null;fillPrescSels();
   const r=id?D.prescriptions.find(x=>x.id===id):{};
   document.getElementById('m-presc-t').textContent=id?'Editar Receita':'Nova Receita';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('presc-pat',r.patientId);sv('presc-pro',r.professionalId||CU?.id);sv('presc-date',r.date||today());sv('presc-notes',r.notes);
   document.getElementById('presc-items').innerHTML='';(r.items&&r.items.length?r.items:['']).forEach(t=>addPrescItem(t));
-  document.getElementById('presc-del').style.display=(id&&canDelete())?'inline-flex':'none';om('presc');
+  document.getElementById('presc-del').style.display=(id&&canDelete()&&pageEditable('prescriptions'))?'inline-flex':'none';om('presc');
 }
 function savePresc(){
-  if(!canEdit())return;const patId=+document.getElementById('presc-pat').value;if(!patId){alert('Selecione paciente.');return;}
+  if(!canEdit()||!pageEditable('prescriptions'))return;const patId=+document.getElementById('presc-pat').value;if(!patId){alert('Selecione paciente.');return;}
   const items=[...document.querySelectorAll('#presc-items .presc-item')].map(i=>i.value.trim()).filter(Boolean);
   if(!items.length){alert('Adicione ao menos um medicamento/prescrição.');return;}
   const obj={patientId:patId,professionalId:+document.getElementById('presc-pro').value,date:document.getElementById('presc-date').value,items,notes:document.getElementById('presc-notes').value};
   EID?D.prescriptions=D.prescriptions.map(r=>r.id===EID?{...obj,id:EID}:r):D.prescriptions.push({...obj,id:uid()});
   save('prescriptions');cm('presc');renderPrescriptions();
 }
-function delPresc(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.prescriptions.find(r=>r.id===EID);if(obj)logDeletion('prescription',obj);D.prescriptions=D.prescriptions.filter(r=>r.id!==EID);save('prescriptions');cm('presc');renderPrescriptions();}
+function delPresc(){if(!canDelete()||!pageEditable('prescriptions')||!confirm('Excluir?'))return;const obj=D.prescriptions.find(r=>r.id===EID);if(obj)logDeletion('prescription',obj);D.prescriptions=D.prescriptions.filter(r=>r.id!==EID);save('prescriptions');cm('presc');renderPrescriptions();}
 function renderPrescriptions(){
   fillPrescSels();const filt=document.getElementById('presc-filter')?.value||'';
   const list=(filt?D.prescriptions.filter(r=>r.patientId===+filt):D.prescriptions).slice().sort((a,b)=>b.date.localeCompare(a.date));
@@ -3930,16 +4016,16 @@ function _nextReceiptNum(){
   return (D.receipts.reduce((m,r)=>Math.max(m,r.num||0),0))+1;
 }
 function openReceipt(id){
-  if(!canEdit()&&!id)return;EID=id||null;fillReceiptSels();
+  if((!canEdit()||!pageEditable('receipts'))&&!id)return;EID=id||null;fillReceiptSels();
   const r=id?D.receipts.find(x=>x.id===id):{};
   document.getElementById('m-receipt-t').textContent=id?'Editar Recibo Nº '+(r.num||''):'Novo Recibo';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('receipt-pat',r.patientId);sv('receipt-pro',r.professionalId||CU?.id);sv('receipt-date',r.date||today());sv('receipt-value',r.value||'');sv('receipt-pay',r.payMethod||'pix');sv('receipt-desc',r.desc);
   updateReceiptExtenso();
-  document.getElementById('receipt-del').style.display=(id&&canDelete())?'inline-flex':'none';om('receipt');
+  document.getElementById('receipt-del').style.display=(id&&canDelete()&&pageEditable('receipts'))?'inline-flex':'none';om('receipt');
 }
 function saveReceipt(){
-  if(!canEdit())return;
+  if(!canEdit()||!pageEditable('receipts'))return;
   const patId=+document.getElementById('receipt-pat').value;if(!patId){alert('Selecione paciente.');return;}
   const value=+document.getElementById('receipt-value').value||0;if(value<=0){alert('Informe o valor recebido.');return;}
   const obj={patientId:patId,professionalId:+document.getElementById('receipt-pro').value,date:document.getElementById('receipt-date').value,value,payMethod:document.getElementById('receipt-pay').value,desc:document.getElementById('receipt-desc').value};
@@ -3950,7 +4036,7 @@ function saveReceipt(){
   }
   save('receipts');cm('receipt');renderReceipts();
 }
-function delReceipt(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.receipts.find(r=>r.id===EID);if(obj)logDeletion('receipt',obj);D.receipts=D.receipts.filter(r=>r.id!==EID);save('receipts');cm('receipt');renderReceipts();}
+function delReceipt(){if(!canDelete()||!pageEditable('receipts')||!confirm('Excluir?'))return;const obj=D.receipts.find(r=>r.id===EID);if(obj)logDeletion('receipt',obj);D.receipts=D.receipts.filter(r=>r.id!==EID);save('receipts');cm('receipt');renderReceipts();}
 function renderReceipts(){
   fillReceiptSels();const filt=document.getElementById('receipt-filter')?.value||'';
   const list=(filt?D.receipts.filter(r=>r.patientId===+filt):D.receipts).slice().sort((a,b)=>b.date.localeCompare(a.date));
@@ -4015,21 +4101,21 @@ function printReceipt(){
 
 // ─── RETURNS ───────────────────────────────────────────────
 function openRet(id){
-  if(!canEdit()&&!id)return;EID=id||null;
+  if((!canEdit()||!pageEditable('returns'))&&!id)return;EID=id||null;
   document.getElementById('ret-pat').innerHTML='<option value="">Selecione...</option>'+D.patients.map(p=>`<option value="${p.id}">${patDisp(p.id)||p.name}</option>`).join('');
   const r=id?D.returns.find(x=>x.id===id):{};
   document.getElementById('m-ret-t').textContent=id?'Editar Retorno':'Agendar Retorno';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
   sv('ret-pat',r.patientId);sv('ret-date',r.date);sv('ret-obs',r.obs);sv('ret-status',r.status||'pending');
-  document.getElementById('ret-del').style.display=(id&&canDelete())?'inline-flex':'none';om('ret');
+  document.getElementById('ret-del').style.display=(id&&canDelete()&&pageEditable('returns'))?'inline-flex':'none';om('ret');
 }
 function saveRet(){
-  if(!canEdit())return;const patId=+document.getElementById('ret-pat').value;if(!patId||!document.getElementById('ret-date').value){alert('Preencha paciente e data.');return;}
+  if(!canEdit()||!pageEditable('returns'))return;const patId=+document.getElementById('ret-pat').value;if(!patId||!document.getElementById('ret-date').value){alert('Preencha paciente e data.');return;}
   const obj={patientId:patId,date:document.getElementById('ret-date').value,obs:document.getElementById('ret-obs').value,status:document.getElementById('ret-status').value};
   EID?D.returns=D.returns.map(r=>r.id===EID?{...obj,id:EID}:r):D.returns.push({...obj,id:uid()});
   save('returns');cm('ret');renderReturns();
 }
-function delRet(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.returns.find(r=>r.id===EID);if(obj)logDeletion('return',obj);D.returns=D.returns.filter(r=>r.id!==EID);save('returns');cm('ret');renderReturns();}
+function delRet(){if(!canDelete()||!pageEditable('returns')||!confirm('Excluir?'))return;const obj=D.returns.find(r=>r.id===EID);if(obj)logDeletion('return',obj);D.returns=D.returns.filter(r=>r.id!==EID);save('returns');cm('ret');renderReturns();}
 function shareRetWhatsApp(){const patId=+document.getElementById('ret-pat').value,p=getPat(patId),date=document.getElementById('ret-date').value,obs=document.getElementById('ret-obs').value,cfg=D.config||{};const msg=`Olá, ${patDisp(patId)}! 😊\nGostaríamos de lembrá-lo(a) do seu retorno:\n📅 ${new Date(date+'T00:00:00').toLocaleDateString('pt-BR')}\n🔁 ${obs}\n📍 ${cfg.name||'Consultório'}\n\nPor favor, confirme! Obrigado!`;const link=wa(p.phone,msg);if(link)window.open(link,'_blank');else alert('Telefone não cadastrado.');}
 function shareRetEmail(){const patId=+document.getElementById('ret-pat').value,p=getPat(patId),date=document.getElementById('ret-date').value,obs=document.getElementById('ret-obs').value,cfg=D.config||{};const subj=`Lembrete de Retorno — ${cfg.name||'Consultório'}`;const body=`Olá, ${patDisp(patId)}!\n\nLembrete do seu retorno:\nData: ${new Date(date+'T00:00:00').toLocaleDateString('pt-BR')}\nMotivo: ${obs}\nLocal: ${cfg.name||'Consultório'}\n\nAguardamos sua confirmação!\n${CU?.dispName||''}`;const link=emailLink(p.email,subj,body);if(link)window.open(link,'_blank');else alert('E-mail não cadastrado.');}
 function askReview(patientId){
@@ -4140,22 +4226,22 @@ function renderOtherPay(){
   }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--t3);padding:20px">Nenhum lançamento.</td></tr>';
 }
 function openOtherPay(id){
-  if(!canEdit()&&!id)return;EID=id||null;
+  if((!canEdit()||!pageEditable('otherpay'))&&!id)return;EID=id||null;
   document.getElementById('op-pro').innerHTML='<option value="">Nenhum</option>'+D.professionals.map(p=>`<option value="${p.id}">${p.dispName}</option>`).join('');
   const op=id?D.otherPayments.find(x=>x.id===id):{};
   document.getElementById('m-op-t').textContent=id?'Editar Lançamento':'Novo Lançamento';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
   sv('op-type',op.type||'daily');sv('op-desc',op.desc);sv('op-pro',op.professionalId||'');sv('op-date',op.date||today());sv('op-val',op.val);sv('op-notes',op.notes);
   toggleRentRate();sv('op-rate',op.rateType||'free');
-  document.getElementById('op-del').style.display=(id&&canDelete())?'inline-flex':'none';om('op');
+  document.getElementById('op-del').style.display=(id&&canDelete()&&pageEditable('otherpay'))?'inline-flex':'none';om('op');
 }
 function saveOtherPay(){
-  if(!canEdit())return;const type=document.getElementById('op-type').value;
+  if(!canEdit()||!pageEditable('otherpay'))return;const type=document.getElementById('op-type').value;
   const obj={type,desc:document.getElementById('op-desc').value,professionalId:+document.getElementById('op-pro').value||0,date:document.getElementById('op-date').value,val:+document.getElementById('op-val').value||0,notes:document.getElementById('op-notes').value,rateType:type==='rent'?(document.getElementById('op-rate').value||'free'):null};
   EID?D.otherPayments=D.otherPayments.map(o=>o.id===EID?{...obj,id:EID}:o):D.otherPayments.push({...obj,id:uid()});
   save('otherPayments');cm('op');renderOtherPay();
 }
-function delOtherPay(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.otherPayments.find(o=>o.id===EID);if(obj)logDeletion('otherPayment',obj);D.otherPayments=D.otherPayments.filter(o=>o.id!==EID);save('otherPayments');cm('op');renderOtherPay();}
+function delOtherPay(){if(!canDelete()||!pageEditable('otherpay')||!confirm('Excluir?'))return;const obj=D.otherPayments.find(o=>o.id===EID);if(obj)logDeletion('otherPayment',obj);D.otherPayments=D.otherPayments.filter(o=>o.id!==EID);save('otherPayments');cm('op');renderOtherPay();}
 
 // ─── STOCK (Insumos) ─────────────────────────────────────────
 let _skSort={key:'name',dir:1};
@@ -4191,20 +4277,20 @@ function renderStock(){
   }).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--t3);padding:20px">Nenhum insumo cadastrado.</td></tr>';
 }
 function openSk(id){
-  if(!canEdit()&&!id)return;EID=id||null;
+  if((!canEdit()||!pageEditable('stock'))&&!id)return;EID=id||null;
   document.getElementById('sk-sup').innerHTML='<option value="">Nenhum</option>'+D.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
   const s=id?D.stock.find(x=>x.id===id):{};
   document.getElementById('m-sk-t').textContent=id?'Editar Item':'Novo Item';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('sk-name',s.name);sv('sk-cat',s.category);sv('sk-unit',s.unit);sv('sk-sup',s.supplierId||'');sv('sk-cost',s.cost);sv('sk-qty',s.qty);sv('sk-minqty',s.minQty);sv('sk-exp',s.exp);sv('sk-location',s.location||'Consultório');
-  document.getElementById('sk-del').style.display=(id&&canDelete())?'inline-flex':'none';om('sk');
+  document.getElementById('sk-del').style.display=(id&&canDelete()&&pageEditable('stock'))?'inline-flex':'none';om('sk');
 }
-function saveSk(){if(!canEdit())return;const name=document.getElementById('sk-name').value.trim();if(!name)return;
+function saveSk(){if(!canEdit()||!pageEditable('stock'))return;const name=document.getElementById('sk-name').value.trim();if(!name)return;
   const gv=id=>document.getElementById(id)?.value||'';
   const obj={name,category:gv('sk-cat'),unit:gv('sk-unit'),supplierId:+gv('sk-sup')||0,cost:+gv('sk-cost'),qty:+gv('sk-qty'),minQty:+gv('sk-minqty'),exp:gv('sk-exp'),location:gv('sk-location')||'Consultório'};
   EID?D.stock=D.stock.map(s=>s.id===EID?{...obj,id:EID}:s):D.stock.push({...obj,id:uid()});
   save('stock');cm('sk');renderStock();}
-function delSk(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.stock.find(s=>s.id===EID);if(obj)logDeletion('stock',obj);D.stock=D.stock.filter(s=>s.id!==EID);save('stock');cm('sk');renderStock();}
+function delSk(){if(!canDelete()||!pageEditable('stock')||!confirm('Excluir?'))return;const obj=D.stock.find(s=>s.id===EID);if(obj)logDeletion('stock',obj);D.stock=D.stock.filter(s=>s.id!==EID);save('stock');cm('sk');renderStock();}
 
 // ─── INSTRUMENTAL (equipamentos próprios dos profissionais) ─
 const EQ_COND_COLORS={'Novo':'#10b981','Bom':'#0ea5e9','Regular':'#f59e0b','Precisa manutenção':'#f97316','Quebrado':'#ef4444'};
@@ -4249,6 +4335,7 @@ function renderEquipment(){
   }).join('')||'<tr><td colspan="10" style="text-align:center;color:var(--t3);padding:20px">Nenhum instrumental cadastrado.</td></tr>';
 }
 function setEqTab(tab){
+  if(tab==='kits'&&!canAccessPage('kits'))tab='list';
   document.getElementById('eqtab-list').classList.toggle('active',tab==='list');
   document.getElementById('eqtab-kits').classList.toggle('active',tab==='kits');
   document.getElementById('eq-view-list').style.display=tab==='list'?'':'none';
@@ -4277,7 +4364,7 @@ function updateEqLocationSuggestion(){
   if(kitId)document.getElementById('eq-location').value='Consultório';
 }
 function openEq(id){
-  if(!canEdit()&&!id)return;EID=id||null;
+  if((!canEdit()||!pageEditable('equipment'))&&!id)return;EID=id||null;
   document.getElementById('eq-pro').innerHTML='<option value="">Nenhum</option>'+D.professionals.map(p=>`<option value="${p.id}">${p.dispName}</option>`).join('');
   document.getElementById('eq-kit').innerHTML='<option value="0">Nenhum (avulso)</option>'+D.kits.map(k=>`<option value="${k.id}">${k.name}</option>`).join('');
   const e=id?D.equipment.find(x=>x.id===id):{};
@@ -4286,16 +4373,16 @@ function openEq(id){
   sv('eq-code',id?e.code:_nextEqCode(''));sv('eq-cat',e.category);sv('eq-name',e.name);sv('eq-qty',id?e.qty:1);
   sv('eq-cond',e.condition||'Novo');sv('eq-value',e.value);sv('eq-acq',e.acquisitionDate);sv('eq-pro',e.professionalId||'');sv('eq-notes',e.notes);
   sv('eq-kit',e.kitId||0);sv('eq-location',e.location||'Consultório');
-  document.getElementById('eq-del').style.display=(id&&canDelete())?'inline-flex':'none';om('eq');
+  document.getElementById('eq-del').style.display=(id&&canDelete()&&pageEditable('equipment'))?'inline-flex':'none';om('eq');
 }
 function saveEq(){
-  if(!canEdit())return;const name=document.getElementById('eq-name').value.trim();if(!name)return;
+  if(!canEdit()||!pageEditable('equipment'))return;const name=document.getElementById('eq-name').value.trim();if(!name)return;
   const gv=id=>document.getElementById(id)?.value||'';
   const obj={code:gv('eq-code'),category:gv('eq-cat'),name,qty:+gv('eq-qty')||0,condition:gv('eq-cond'),value:+gv('eq-value')||0,acquisitionDate:gv('eq-acq'),professionalId:+gv('eq-pro')||0,notes:gv('eq-notes'),kitId:+gv('eq-kit')||0,location:gv('eq-location')||'Consultório'};
   EID?D.equipment=D.equipment.map(e=>e.id===EID?{...obj,id:EID}:e):D.equipment.push({...obj,id:uid()});
   save('equipment');cm('eq');renderEquipment();
 }
-function delEq(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.equipment.find(e=>e.id===EID);if(obj)logDeletion('equipment',obj);D.equipment=D.equipment.filter(e=>e.id!==EID);save('equipment');cm('eq');renderEquipment();}
+function delEq(){if(!canDelete()||!pageEditable('equipment')||!confirm('Excluir?'))return;const obj=D.equipment.find(e=>e.id===EID);if(obj)logDeletion('equipment',obj);D.equipment=D.equipment.filter(e=>e.id!==EID);save('equipment');cm('eq');renderEquipment();}
 
 // ─── KITS DE INSTRUMENTAL ────────────────────────────────────
 function kitComposition(kitId){
@@ -4338,16 +4425,16 @@ function renderKits(){
   }).join('');
 }
 function openKit(id){
-  if(!canEdit()&&!id)return;EID=id||null;
+  if((!canEdit()||!pageEditable('kits'))&&!id)return;EID=id||null;
   document.getElementById('kit-pro').innerHTML='<option value="">Nenhum</option>'+D.professionals.map(p=>`<option value="${p.id}">${p.dispName}</option>`).join('');
   const k=id?D.kits.find(x=>x.id===id):{};
   document.getElementById('m-kit-t').textContent=id?'Editar Kit':'Novo Kit';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('kit-name',k.name);sv('kit-cat',k.category);sv('kit-pro',k.professionalId||'');sv('kit-notes',k.notes);
-  document.getElementById('kit-del').style.display=(id&&canDelete())?'inline-flex':'none';om('kit');
+  document.getElementById('kit-del').style.display=(id&&canDelete()&&pageEditable('kits'))?'inline-flex':'none';om('kit');
 }
 function saveKit(){
-  if(!canEdit())return;const name=document.getElementById('kit-name').value.trim();if(!name)return;
+  if(!canEdit()||!pageEditable('kits'))return;const name=document.getElementById('kit-name').value.trim();if(!name)return;
   const gv=id=>document.getElementById(id)?.value||'';
   const obj={name,category:gv('kit-cat'),professionalId:+gv('kit-pro')||0,notes:gv('kit-notes')};
   if(EID)D.kits=D.kits.map(k=>k.id===EID?{...k,...obj}:k);
@@ -4355,7 +4442,7 @@ function saveKit(){
   save('kits');cm('kit');renderKits();
 }
 function delKit(){
-  if(!canDelete()||!confirm('Excluir kit? O instrumental vinculado a ele não é excluído, só volta a ficar avulso.'))return;
+  if(!canDelete()||!pageEditable('kits')||!confirm('Excluir kit? O instrumental vinculado a ele não é excluído, só volta a ficar avulso.'))return;
   const obj=D.kits.find(k=>k.id===EID);if(!obj)return;
   logDeletion('kit',obj);
   D.equipment=D.equipment.map(e=>e.kitId===EID?{...e,kitId:0}:e);
@@ -4364,7 +4451,7 @@ function delKit(){
 }
 let _kitCheckId=null;
 function openKitCheck(id){
-  if(!canEdit())return;
+  if(!canEdit()||!pageEditable('kits'))return;
   const kit=D.kits.find(k=>k.id===id);if(!kit)return;
   _kitCheckId=id;
   const comp=kitComposition(id);
@@ -4377,7 +4464,7 @@ function openKitCheck(id){
   om('kit-check');
 }
 function saveKitCheck(){
-  if(!canEdit())return;
+  if(!canEdit()||!pageEditable('kits'))return;
   const kit=D.kits.find(k=>k.id===_kitCheckId);if(!kit)return;
   const items=[...document.querySelectorAll('.kit-check-found')].map(inp=>({name:inp.dataset.name,qtyExpected:+inp.dataset.expected,qtyFound:+inp.value||0}));
   if(!kit.checklog)kit.checklog=[];
@@ -4448,17 +4535,17 @@ function renderShopping(){
 }
 
 // ─── SUPPLIERS ─────────────────────────────────────────────
-function openSup(id){if(!canEdit()&&!id)return;editSupId=id||null;tempOrders=[];const s=id?D.suppliers.find(x=>x.id===id):{};if(id&&s.orders)tempOrders=JSON.parse(JSON.stringify(s.orders||[]));
+function openSup(id){if((!canEdit()||!pageEditable('suppliers'))&&!id)return;editSupId=id||null;tempOrders=[];const s=id?D.suppliers.find(x=>x.id===id):{};if(id&&s.orders)tempOrders=JSON.parse(JSON.stringify(s.orders||[]));
   document.getElementById('m-sup-t').textContent=id?'Editar Fornecedor':'Novo Fornecedor';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
   sv('sup-name',s.name);sv('sup-doc',s.doc);sv('sup-seg',s.seg);sv('sup-phone',s.phone);sv('sup-email',s.email);sv('sup-rep',s.rep);sv('sup-site',s.site);sv('sup-addr',s.addr);sv('sup-notes',s.notes);
   document.getElementById('sup-ord-date').value=today();document.getElementById('sup-ord-val').value='';document.getElementById('sup-ord-items').value='';
-  document.getElementById('sup-del').style.display=(id&&canDelete())?'inline-flex':'none';renderOrdersList();om('sup');}
+  document.getElementById('sup-del').style.display=(id&&canDelete()&&pageEditable('suppliers'))?'inline-flex':'none';renderOrdersList();om('sup');}
 function renderOrdersList(){document.getElementById('sup-orders-wrap').innerHTML=!tempOrders.length?'':
   `<div class="form-sec">Histórico (${tempOrders.length})</div><table class="tbl"><thead><tr><th>Data</th><th>Itens</th><th>Valor</th></tr></thead><tbody>
   ${tempOrders.map(o=>`<tr><td style="font-size:11.5px">${new Date(o.date+'T00:00:00').toLocaleDateString('pt-BR')}</td><td style="font-size:12px">${o.items}</td><td style="font-weight:700;color:var(--P)">${fmt(o.val)}</td></tr>`).join('')}</tbody></table>`;}
 function addOrder(){const date=document.getElementById('sup-ord-date').value,val=+document.getElementById('sup-ord-val').value||0,items=document.getElementById('sup-ord-items').value.trim();if(!date||!items)return;tempOrders.unshift({id:uid(),date,val,items});document.getElementById('sup-ord-val').value='';document.getElementById('sup-ord-items').value='';renderOrdersList();}
-function saveSup(){if(!canEdit())return;const name=document.getElementById('sup-name').value.trim();if(!name)return;
+function saveSup(){if(!canEdit()||!pageEditable('suppliers'))return;const name=document.getElementById('sup-name').value.trim();if(!name)return;
   const gv=id=>document.getElementById(id)?.value||'';
   const docRaw=gv('sup-doc');
   // Validar duplicatas
@@ -4472,7 +4559,7 @@ function saveSup(){if(!canEdit())return;const name=document.getElementById('sup-
   const obj={name,doc:gv('sup-doc'),seg:gv('sup-seg'),phone:gv('sup-phone').replace(/\D/g,''),email:gv('sup-email'),rep:gv('sup-rep'),site:gv('sup-site'),addr:gv('sup-addr'),notes:gv('sup-notes'),orders:tempOrders};
   editSupId?D.suppliers=D.suppliers.map(s=>s.id===editSupId?{...obj,id:editSupId}:s):D.suppliers.push({...obj,id:uid()});
   save('suppliers');cm('sup');renderSuppliers();}
-function delSup(){if(!canDelete()||!confirm('Excluir?'))return;const obj=D.suppliers.find(s=>s.id===editSupId);if(obj)logDeletion('supplier',obj);D.suppliers=D.suppliers.filter(s=>s.id!==editSupId);save('suppliers');cm('sup');renderSuppliers();}
+function delSup(){if(!canDelete()||!pageEditable('suppliers')||!confirm('Excluir?'))return;const obj=D.suppliers.find(s=>s.id===editSupId);if(obj)logDeletion('supplier',obj);D.suppliers=D.suppliers.filter(s=>s.id!==editSupId);save('suppliers');cm('sup');renderSuppliers();}
 function renderSuppliers(){
   const q=(document.getElementById('sup-search')?.value||'').toLowerCase().trim();
   const qd=q.replace(/\D/g,'');
@@ -4499,14 +4586,14 @@ function renderSuppliers(){
 }
 
 // ─── PROFESSIONALS ─────────────────────────────────────────
-function openPro(id){if(!canAdmin()&&!id)return;EID=id||null;
+function openPro(id){if((!canAdmin()||!pageEditable('professionals'))&&!id)return;EID=id||null;
   document.getElementById('pr-role').innerHTML=D.roles.map(r=>`<option>${r}</option>`).join('');
   const p=id?D.professionals.find(x=>x.id===id):{};
   document.getElementById('m-pro-t').textContent=id?'Editar Profissional':'Novo Profissional';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('pr-fullname',p.fullName);sv('pr-dispname',p.dispName);sv('pr-role',p.role||D.roles[0]);sv('pr-phone',p.phone);sv('pr-email',p.email);sv('pr-comm',p.commission||0);sv('pr-daily',p.daily||0);sv('pr-profile',p.profile||'editor');document.getElementById('pr-color').value=p.color||'#0ea5e9';
-  document.getElementById('pr-del').style.display=(id&&canDelete())?'inline-flex':'none';om('pro');}
-function savePro(){if(!canAdmin())return;const dn=document.getElementById('pr-dispname').value.trim();if(!dn)return;
+  document.getElementById('pr-del').style.display=(id&&canDelete()&&pageEditable('professionals'))?'inline-flex':'none';om('pro');}
+function savePro(){if(!canAdmin()||!pageEditable('professionals'))return;const dn=document.getElementById('pr-dispname').value.trim();if(!dn)return;
   const gv=id=>document.getElementById(id)?.value||'';
   const fullName=gv('pr-fullname').trim();
   const email=gv('pr-email').trim().toLowerCase();
@@ -4523,7 +4610,7 @@ function savePro(){if(!canAdmin())return;const dn=document.getElementById('pr-di
   const obj={fullName,dispName:dn,role:gv('pr-role'),phone:gv('pr-phone').replace(/\D/g,''),email,commission:+gv('pr-comm'),daily:+gv('pr-daily'),color:gv('pr-color'),profile:gv('pr-profile')};
   EID?D.professionals=D.professionals.map(p=>p.id===EID?{...obj,id:EID}:p):D.professionals.push({...obj,id:uid()});
   save('professionals');cm('pro');renderProfessionals();}
-function delPro(){if(!canDelete()||D.professionals.length<=1||!confirm('Excluir?'))return;const obj=D.professionals.find(p=>p.id===EID);if(obj)logDeletion('professional',obj);D.professionals=D.professionals.filter(p=>p.id!==EID);save('professionals');cm('pro');renderProfessionals();}
+function delPro(){if(!canDelete()||!pageEditable('professionals')||D.professionals.length<=1||!confirm('Excluir?'))return;const obj=D.professionals.find(p=>p.id===EID);if(obj)logDeletion('professional',obj);D.professionals=D.professionals.filter(p=>p.id!==EID);save('professionals');cm('pro');renderProfessionals();}
 function renderProfessionals(){
   const q=(document.getElementById('pro-search')?.value||'').toLowerCase().trim();
   const qd=q.replace(/\D/g,'');
@@ -4559,10 +4646,15 @@ function renderAdmin(){
       <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${p.dispName}</div><div style="font-size:11px;color:var(--t3)">${p.fullName||p.role}</div></div>
       <span class="badge ${ROLES_CSS[p.profile]||'role-reader'}">${ROLES_LABEL[p.profile]||p.profile}</span>
     </div>`).join('');
+  document.getElementById('admin-perms').innerHTML=D.professionals.map(p=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9">
+      <span style="font-size:13px">${p.dispName}</span>
+      <button class="btn btn-o btn-sm" onclick="openPerms(${p.id})">Configurar</button>
+    </div>`).join('');
   document.getElementById('admin-roles').innerHTML=D.roles.map((r,i)=>`
     <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9">
       <span style="font-size:13.5px">${r}</span>
-      ${canAdmin()?`<button onclick="removeRole(${i})" style="background:none;border:none;color:var(--R);cursor:pointer;font-size:15px">✕</button>`:''}
+      ${canAdmin()&&pageEditable('admin')?`<button onclick="removeRole(${i})" style="background:none;border:none;color:var(--R);cursor:pointer;font-size:15px">✕</button>`:''}
     </div>`).join('');
   document.getElementById('admin-procs').innerHTML=D.procs.map(p=>`
     <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px">
@@ -4574,8 +4666,8 @@ function renderAdmin(){
   sv('cfg-name',cfg.name);sv('cfg-phone',cfg.phone);sv('cfg-addr',cfg.addr);sv('cfg-cro',cfg.cro);sv('cfg-taxid',cfg.taxId);sv('cfg-review-link',cfg.googleReviewLink);sv('cfg-color',cfg.accentColor||'#0c6e9e');
   renderCfgLogoPreview();
 }
-function addRole(){const v=document.getElementById('new-role-inp').value.trim();if(!v||D.roles.includes(v))return;D.roles.push(v);save('roles');document.getElementById('new-role-inp').value='';renderAdmin();}
-function removeRole(i){if(!confirm('Remover cargo?'))return;D.roles.splice(i,1);save('roles');renderAdmin();}
+function addRole(){if(!canAdmin()||!pageEditable('admin'))return;const v=document.getElementById('new-role-inp').value.trim();if(!v||D.roles.includes(v))return;D.roles.push(v);save('roles');document.getElementById('new-role-inp').value='';renderAdmin();}
+function removeRole(i){if(!canAdmin()||!pageEditable('admin')||!confirm('Remover cargo?'))return;D.roles.splice(i,1);save('roles');renderAdmin();}
 function saveCfg(){
   D.config={name:document.getElementById('cfg-name').value,phone:document.getElementById('cfg-phone').value,addr:document.getElementById('cfg-addr').value,cro:document.getElementById('cfg-cro').value,taxId:document.getElementById('cfg-taxid').value,googleReviewLink:document.getElementById('cfg-review-link').value.trim(),accentColor:document.getElementById('cfg-color').value,logo:D.config?.logo||''};
   save('config');alert('Configurações salvas!');
@@ -4608,17 +4700,17 @@ function removeCfgLogo(){
 }
 
 // ─── PROCEDURES ADMIN ──────────────────────────────────────
-function openProcModal(id){if(!canAdmin())return;EID=id||null;
+function openProcModal(id){if(!canAdmin()||!pageEditable('admin'))return;EID=id||null;
   const p=id?D.procs.find(x=>x.id===id):{};
   document.getElementById('m-proc-t').textContent=id?'Editar Procedimento':'Novo Procedimento';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val===undefined?'':val;};
   sv('proc-name',p.name);sv('proc-code',p.code);sv('proc-price',p.price);sv('proc-cost',p.cost);sv('proc-profcost',p.profcost||0);sv('proc-dur',p.dur||60);
-  document.getElementById('proc-del').style.display=(id&&canDelete())?'inline-flex':'none';om('proc');}
-function saveProc(){if(!canAdmin())return;const name=document.getElementById('proc-name').value.trim();if(!name)return;
+  document.getElementById('proc-del').style.display=(id&&canDelete()&&pageEditable('admin'))?'inline-flex':'none';om('proc');}
+function saveProc(){if(!canAdmin()||!pageEditable('admin'))return;const name=document.getElementById('proc-name').value.trim();if(!name)return;
   const obj={name,code:document.getElementById('proc-code').value.trim(),price:+document.getElementById('proc-price').value||0,cost:+document.getElementById('proc-cost').value||0,profcost:+document.getElementById('proc-profcost').value||0,dur:+document.getElementById('proc-dur').value||60};
   EID?D.procs=D.procs.map(p=>p.id===EID?{...obj,id:EID}:p):D.procs.push({...obj,id:uid()});
   save('procs');cm('proc');renderAdmin();}
-function delProc(){if(!canDelete()||!confirm('Excluir procedimento?'))return;const obj=D.procs.find(p=>p.id===EID);if(obj)logDeletion('procedure',obj);D.procs=D.procs.filter(p=>p.id!==EID);save('procs');cm('proc');renderAdmin();}
+function delProc(){if(!canDelete()||!pageEditable('admin')||!confirm('Excluir procedimento?'))return;const obj=D.procs.find(p=>p.id===EID);if(obj)logDeletion('procedure',obj);D.procs=D.procs.filter(p=>p.id!==EID);save('procs');cm('proc');renderAdmin();}
 
 // ─── IMPORT/EXPORT CSV/EXCEL + BACKUP JSON ──────────────────
 
@@ -5378,7 +5470,7 @@ function renderAttViewer() {
 
   // Show/hide delete based on permission
   const delBtn = document.getElementById('att-viewer-del-btn');
-  if (delBtn) delBtn.style.display = (canEdit() || canAdmin()) ? 'inline-flex' : 'none';
+  if (delBtn) delBtn.style.display = ((canEdit() || canAdmin()) && pageEditable('records')) ? 'inline-flex' : 'none';
 
   // Show/hide nav arrows
   document.querySelector('.att-viewer-nav.prev').style.visibility = index > 0 ? 'visible' : 'hidden';
@@ -5421,7 +5513,7 @@ function attViewerDownload() {
 }
 
 function attViewerDelete() {
-  if (!canEdit() && !canAdmin()) { alert('Sem permissão.'); return; }
+  if ((!canEdit() && !canAdmin()) || !pageEditable('records')) { alert('Sem permissão.'); return; }
   if (!confirm('Excluir este anexo?')) return;
   const { attachments, index, visitId, mode } = attViewerData;
 
@@ -7112,7 +7204,7 @@ function saveClinic(){
 }
 
 function delClinic(){
-  if(!canDelete()||!EID||!confirm('Excluir esta clínica? Todos os dados serão perdidos!'))return;
+  if(!canDelete()||!pageEditable('clinics')||!EID||!confirm('Excluir esta clínica? Todos os dados serão perdidos!'))return;
   let clinics=getClinics();
   const c=clinics.find(x=>x.id===EID);
   if(c?.isDefault){alert('Não é possível excluir a clínica padrão.');return;}
