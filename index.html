@@ -53,7 +53,7 @@ window._fbSignOut = async function(){
 // As 10 coleções em array e as 2 em documento único (config/messages) que já
 // eram compartilhadas por clínica no localStorage (ver migrateDataToClinic no
 // script principal) — precisa ficar em sincronia com essa mesma lista.
-const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts'];
+const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist'];
 const SINGLEDOC_COLS = ['config','messages'];
 
 window._applyingRemote = false;
@@ -523,6 +523,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <button class="nav-btn" onclick="go('prescriptions')"><span class="nav-icon" data-ico="prescriptions"></span><span class="nav-label">Receituário</span></button>
   <button class="nav-btn" onclick="go('receipts')"><span class="nav-icon" data-ico="receipts"></span><span class="nav-label">Recibos</span></button>
   <button class="nav-btn" onclick="go('returns')"><span class="nav-icon" data-ico="returns"></span><span class="nav-label">Retornos</span></button>
+  <button class="nav-btn" onclick="go('waitlist')"><span class="nav-icon" data-ico="waitlist"></span><span class="nav-label">Lista de Espera</span></button>
   <div class="s-sec nav-label">Gestão</div>
   <button class="nav-btn" onclick="go('finance')"><span class="nav-icon" data-ico="finance"></span><span class="nav-label">Financeiro</span></button>
   <button class="nav-btn" onclick="go('otherpay')"><span class="nav-icon" data-ico="otherpay"></span><span class="nav-label">Outros Pgtos</span></button>
@@ -572,7 +573,8 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   </div>
   <div><div class="card card-nav" style="margin-bottom:12px" onclick="go('finance')"><div class="card-hd"><span class="nav-icon" data-ico="briefcase"></span> Comissões Pendentes</div><div id="dash-comm"></div></div>
   <div class="card card-nav" style="margin-bottom:12px" onclick="go('stock')"><div class="card-hd"><span class="nav-icon" data-ico="alert"></span> Estoque Crítico</div><div id="dash-stock"></div></div>
-  <div class="card card-nav" onclick="go('returns')"><div class="card-hd"><span class="nav-icon" data-ico="returns"></span> Retornos Próximos</div><div id="dash-rets"></div></div></div></div>
+  <div class="card card-nav" style="margin-bottom:12px" onclick="go('returns')"><div class="card-hd"><span class="nav-icon" data-ico="returns"></span> Retornos Próximos</div><div id="dash-rets"></div></div>
+  <div class="card card-nav" onclick="go('waitlist')"><div class="card-hd"><span class="nav-icon" data-ico="waitlist"></span> Vagas Disponíveis (Lista de Espera)</div><div id="dash-waitlist"></div></div></div></div>
 </div>
 
 <!-- AGENDA -->
@@ -669,6 +671,24 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div class="actions no-print"><button class="btn btn-p" onclick="openRet()" id="btn-new-ret">+ Agendar</button>
   <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button></div></div>
   <div id="ret-list" style="display:flex;flex-direction:column;gap:10px"></div>
+</div>
+
+<!-- WAITLIST -->
+<div id="page-waitlist" class="page">
+  <div class="row-flex"><div><div class="s-title">Lista de Espera</div><div class="s-sub">Vaga de cancelamento</div></div>
+  <div class="actions no-print"><button class="btn btn-p" onclick="openWait()" id="btn-new-wait">+ Novo</button></div></div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <input class="inp" id="wait-search" placeholder="Buscar por paciente..." style="flex:1;min-width:180px" oninput="renderWaitlist()"/>
+    <select class="inp" id="wait-status-filter" style="width:170px" onchange="renderWaitlist()">
+      <option value="active">Aguardando</option>
+      <option value="contacted">Contatado</option>
+      <option value="all">Todos</option>
+    </select>
+  </div>
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table class="tbl"><thead><tr><th>Paciente</th><th>Profissional</th><th>Período</th><th>Status</th><th>Ações</th></tr></thead>
+    <tbody id="wait-body"></tbody></table>
+  </div>
 </div>
 
 <!-- FINANCE -->
@@ -987,6 +1007,11 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
       <div class="card-hd" style="font-size:15px;margin-bottom:6px"><span class="nav-icon" data-ico="messages"></span> E-mail — Retorno</div>
       <div style="font-size:11.5px;color:var(--t3);margin-bottom:8px">Variáveis: {nome} {data} {motivo} {clinica}</div>
       <textarea class="inp" id="msg-email-return" rows="6" style="font-size:13px"></textarea>
+    </div>
+    <div class="card">
+      <div class="card-hd" style="font-size:15px;margin-bottom:6px"><span class="nav-icon" data-ico="whatsapp"></span> WhatsApp — Vaga da Lista de Espera</div>
+      <div style="font-size:11.5px;color:var(--t3);margin-bottom:8px">Variáveis: {nome} {data} {hora} {profissional} {clinica}</div>
+      <textarea class="inp" id="msg-wa-waitlist" rows="6" style="font-size:13px"></textarea>
     </div>
   </div>
 </div>
@@ -1418,6 +1443,24 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   </div>
 </div></div>
 
+<div class="overlay" id="m-wait" style="display:none" onclick="if(event.target===this)cm('wait')"><div class="modal" onclick="event.stopPropagation()" style="max-width:460px">
+  <div class="modal-title" id="m-wait-t">Lista de Espera</div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div><label>Paciente</label><select class="inp" id="wait-pat"></select></div>
+    <div><label>Profissional Preferido</label><select class="inp" id="wait-pro"><option value="0">Qualquer</option></select></div>
+    <div class="g2" style="gap:9px">
+      <div><label>Data de</label><input type="date" class="inp" id="wait-datefrom"/></div>
+      <div><label>Data até</label><input type="date" class="inp" id="wait-dateto"/></div>
+    </div>
+    <div><label>Observações</label><input class="inp" id="wait-notes" placeholder="Ex: prefere período da manhã"/></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-r btn-sm" id="wait-del" style="display:none" onclick="delWait()">Excluir</button>
+    <button class="btn btn-o" onclick="cm('wait')">Cancelar</button>
+    <button class="btn btn-p" onclick="saveWait()">Salvar</button>
+  </div>
+</div></div>
+
 <div class="overlay" id="m-sk" style="display:none" onclick="if(event.target===this)cm('sk')"><div class="modal" onclick="event.stopPropagation()" style="max-width:450px">
   <div class="modal-title" id="m-sk-t">Item de Estoque</div>
   <div style="display:flex;flex-direction:column;gap:10px">
@@ -1792,6 +1835,7 @@ kits:[],
 suppliers:[],
 prescriptions:[],
 receipts:[],
+waitlist:[],
 roles:["Dentista","Endodontista","Ortodontista","Implantodontista","Periodontista","Técnico","Auxiliar","Secretária","Recepcionista"],
 config:{name:"Consultório OdontoGuest",phone:"",addr:"",cro:"",taxId:"",logo:"",accentColor:"#0c6e9e",googleReviewLink:""},
 procs:DEF_PROCS,
@@ -2079,7 +2123,7 @@ function applyPermissions(){
 // Fase 3 — esconde item de menu (e a aba "Kits", que não tem nav-btn próprio) quando
 // pageAccess='hidden' pro profissional logado. Só esconde, nunca mostra — não interfere com a
 // lógica de nav-admin/nav-backup (canAdmin()/isDev()) que já roda antes disso em enterApp().
-const BTN_NEW_PAGE={'btn-new-apt':'agenda','btn-new-pat':'patients','btn-new-rec':'records','btn-new-bud':'budgets','btn-new-presc':'prescriptions','btn-new-receipt':'receipts','btn-new-ret':'returns','btn-new-op':'otherpay','btn-new-sk':'stock','btn-new-eq':'equipment','btn-new-kit':'kits','btn-new-sup':'suppliers','btn-new-pro':'professionals'};
+const BTN_NEW_PAGE={'btn-new-apt':'agenda','btn-new-pat':'patients','btn-new-rec':'records','btn-new-bud':'budgets','btn-new-presc':'prescriptions','btn-new-receipt':'receipts','btn-new-ret':'returns','btn-new-wait':'waitlist','btn-new-op':'otherpay','btn-new-sk':'stock','btn-new-eq':'equipment','btn-new-kit':'kits','btn-new-sup':'suppliers','btn-new-pro':'professionals'};
 function applyPagePermissions(){
   document.querySelectorAll('.nav-btn[onclick]').forEach(btn=>{
     const m=btn.getAttribute('onclick').match(/go\('([^']+)'\)/);
@@ -2100,7 +2144,7 @@ function applyPagePermissions(){
 const PAGE_PERMS=[
   {key:'agenda',label:'Agenda'},{key:'patients',label:'Pacientes'},{key:'records',label:'Prontuário'},
   {key:'budgets',label:'Orçamentos'},{key:'prescriptions',label:'Receituário'},{key:'receipts',label:'Recibos'},
-  {key:'returns',label:'Retornos'},{key:'finance',label:'Financeiro'},{key:'otherpay',label:'Outros Pgtos'},
+  {key:'returns',label:'Retornos'},{key:'waitlist',label:'Lista de Espera'},{key:'finance',label:'Financeiro'},{key:'otherpay',label:'Outros Pgtos'},
   {key:'stock',label:'Estoque'},{key:'equipment',label:'Instrumental'},{key:'kits',label:'↳ Kits'},
   {key:'shopping',label:'Lista Compras'},{key:'suppliers',label:'Fornecedores'},{key:'professionals',label:'Profissionais'},
   {key:'clinics',label:'Clínicas'},{key:'notifications',label:'Notificações'},{key:'reports',label:'Relatórios'},
@@ -2173,6 +2217,7 @@ const OG_ICO = {
   history:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
   wrench:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
   lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  waitlist:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   equipment:'<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/>',
   whatsapp:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
   trendingDown:'<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>'
@@ -2254,10 +2299,10 @@ function go(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
-  const pages=['dashboard','agenda','patients','records','budgets','prescriptions','receipts','returns','finance','otherpay','stock','equipment','shopping','suppliers','professionals','clinics','notifications','reports','advreports','messages','admin','backup'];
+  const pages=['dashboard','agenda','patients','records','budgets','prescriptions','receipts','returns','waitlist','finance','otherpay','stock','equipment','shopping','suppliers','professionals','clinics','notifications','reports','advreports','messages','admin','backup'];
   document.querySelectorAll('.nav-btn')[pages.indexOf(page)]?.classList.add('active');
   activePage=page;
-  const R={dashboard:renderDashboard,agenda:renderAgenda,patients:renderPatients,records:renderRecords,budgets:renderBudgets,prescriptions:renderPrescriptions,receipts:renderReceipts,returns:renderReturns,finance:renderFinance,otherpay:renderOtherPay,stock:renderStock,equipment:renderEquipment,shopping:renderShopping,suppliers:renderSuppliers,professionals:renderProfessionals,clinics:renderClinics,notifications:renderNotifications,reports:renderReports,advreports:renderAdvReports,messages:renderMessages,admin:renderAdmin,backup:renderBackup};
+  const R={dashboard:renderDashboard,agenda:renderAgenda,patients:renderPatients,records:renderRecords,budgets:renderBudgets,prescriptions:renderPrescriptions,receipts:renderReceipts,returns:renderReturns,waitlist:renderWaitlist,finance:renderFinance,otherpay:renderOtherPay,stock:renderStock,equipment:renderEquipment,shopping:renderShopping,suppliers:renderSuppliers,professionals:renderProfessionals,clinics:renderClinics,notifications:renderNotifications,reports:renderReports,advreports:renderAdvReports,messages:renderMessages,admin:renderAdmin,backup:renderBackup};
   R[page]?.();
   closeSidebarMobile();
   if(_suppressPageHistory){_suppressPageHistory=false;}
@@ -2391,6 +2436,7 @@ function renderDashboard(){
     {l:"Pacientes",v:D.patients.length,s:"cadastrados",c:"#7c3aed",i:"patients",p:"patients"},
     {l:"Alertas",v:lowSk.length+expSoon.length,s:"estoque",c:lowSk.length>0?"#e63946":"#10b981",i:"stock",p:"stock"},
     {l:"Kits Incompletos",v:kitAlerts.length,s:"instrumental",c:kitAlerts.length>0?"#e63946":"#10b981",i:"equipment",p:"equipment"},
+    {l:"Vagas p/ Espera",v:getWaitlistAlerts().length,s:"lista de espera",c:getWaitlistAlerts().length>0?"#0ea5e9":"#10b981",i:"waitlist",p:"waitlist"},
   ].map(s=>`<div class="card stat-card card-nav" onclick="go('${s.p}')"><div class="stat-icon" style="background:${s.c}18;color:${s.c}">${ogIco(s.i,22)}</div><div><div style="font-size:20px;font-weight:800">${s.v}</div><div style="font-size:13px;font-weight:700;color:#334155">${s.l}</div><div style="font-size:11.5px;color:var(--t3)">${s.s}</div></div></div>`).join('');
   document.getElementById('dash-today').innerHTML=!todayApts.length?'<div style="color:var(--t3);font-size:13px">Sem agendamentos hoje.</div>':
     todayApts.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>{
@@ -2429,6 +2475,44 @@ function renderDashboard(){
       '<div style="color:var(--t3);font-size:12.5px">Sem comissões pendentes.</div>';
   } else { document.getElementById('dash-comm').innerHTML='<div style="color:var(--t3);font-size:12.5px">Nenhum profissional com comissão configurada.</div>'; }
   renderDashConfirmPending();
+  renderDashWaitlistAlerts();
+}
+// Alerta de vaga liberada (Cancelado/excluído) que casa com alguém na Lista de Espera — ver
+// checkWaitlistMatch(), chamada em saveApt()/delApt(). 1 linha por match (não por entrada — a
+// mesma pessoa pode ter mais de uma vaga casada acumulada até ser contatada).
+function getWaitlistAlerts(){
+  const t=today(),out=[];
+  D.waitlist.forEach(w=>{
+    if(w.status!=='waiting'||w.dateTo<t)return;
+    (w.matches||[]).forEach(m=>out.push({waitId:w.id,patientId:w.patientId,match:m}));
+  });
+  return out.sort((a,b)=>b.match.ts-a.match.ts);
+}
+function renderDashWaitlistAlerts(){
+  const el=document.getElementById('dash-waitlist');if(!el)return;
+  const alerts=getWaitlistAlerts();
+  if(!alerts.length){el.innerHTML='<div style="color:var(--t3);font-size:13px">Nenhuma vaga casando com a lista de espera.</div>';return;}
+  el.innerHTML=alerts.map(a=>{
+    const p=getPat(a.patientId),pr=getPro(a.match.professionalId);
+    const msg=fillMsg('waWaitlist',{nome:patDisp(a.patientId),data:new Date(a.match.date+'T00:00:00').toLocaleDateString('pt-BR'),hora:a.match.time,profissional:pr.dispName,clinica:(D.config||{}).name||'Consultório'});
+    const link=wa(p.phone,msg);
+    return`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #f1f5f9">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700">${patDisp(a.patientId)} ${waBadge(p.phone)}</div>
+        <div style="font-size:11.5px;color:var(--t3)">${new Date(a.match.date+'T00:00:00').toLocaleDateString('pt-BR')} · ${a.match.time} · ${pr.dispName?.split(' ').pop()}</div>
+      </div>
+      <div style="display:flex;gap:5px;flex-shrink:0">
+        ${link?`<a href="${link}" target="_blank" class="btn btn-sm btn-wa" onclick="event.stopPropagation()" title="Avisar via WhatsApp">📱</a>`:''}
+        <button class="btn btn-sm btn-p" onclick="event.stopPropagation();markWaitContacted(${a.waitId})" title="Marcar como contatado">✓</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function markWaitContacted(id){
+  const w=D.waitlist.find(x=>x.id===id);if(!w)return;
+  w.status='contacted';save('waitlist');
+  if(activePage==='dashboard')renderDashboard();else renderDashWaitlistAlerts();
+  if(activePage==='waitlist')renderWaitlist();
 }
 // Painel de confirmações pendentes (hoje/amanhã) — meio-termo pro hábito manual de
 // lembrete diário, já que automação em segundo plano (sem alguém com o app aberto)
@@ -2675,6 +2759,23 @@ function findApptConflict(profId,date,time,durMin,excludeId){
     return start<aEnd&&aStart<end;
   });
 }
+// Lista de espera: uma vaga é "liberada" quando um agendamento vira Cancelado ou é excluído (ver
+// saveApt/delApt) — cruza contra quem está esperando (profissional + janela de datas) e registra
+// o match (histórico, não sobrescreve), pra aparecer no alerta do Painel (getWaitlistAlerts()).
+function checkWaitlistMatch(apt){
+  if(!apt)return;
+  let changed=false;
+  D.waitlist.forEach(w=>{
+    if(w.status!=='waiting')return;
+    if(w.professionalId&&w.professionalId!==apt.professionalId)return;
+    if(apt.date<w.dateFrom||apt.date>w.dateTo)return;
+    w.matches=w.matches||[];
+    if(w.matches.some(m=>m.apptSourceId===apt.id))return;
+    w.matches.push({date:apt.date,time:apt.time,professionalId:apt.professionalId,apptSourceId:apt.id,ts:Date.now()});
+    changed=true;
+  });
+  if(changed)save('waitlist');
+}
 async function saveApt(){
   if(!canEdit()||!pageEditable('agenda')){alert('Sem permissão.');return;}
   const patId=+document.getElementById('apt-pat').value,proId=+document.getElementById('apt-pro').value,procId=+document.getElementById('apt-proc').value;
@@ -2688,13 +2789,16 @@ async function saveApt(){
     const cPat=getPat(conflict.patientId);
     if(!await confirm(`⚠️ Já existe um agendamento para este profissional neste horário: "${patDisp(conflict.patientId)||cPat.name}" às ${conflict.time}.\n\nDeseja salvar mesmo assim (encaixe)?`))return;
   }
+  const oldApt=EID?D.appointments.find(a=>a.id===EID):null;
   const obj={patientId:patId,professionalId:proId,procedureId:procId,date,time,status:document.getElementById('apt-status').value,pay:document.getElementById('apt-pay').value,payst:document.getElementById('apt-payst').value,notes:document.getElementById('apt-notes').value,disc,finalVal};
   const apId=EID||uid();
   EID?D.appointments=D.appointments.map(a=>a.id===EID?{...a,...obj,id:EID}:a):D.appointments.push({...obj,id:apId});
-  save('appointments');cm('apt');renderAgenda();if(activePage==='dashboard')renderDashboard();
+  save('appointments');cm('apt');renderAgenda();
+  if(obj.status==='cancelled'&&oldApt?.status!=='cancelled')checkWaitlistMatch({...obj,id:apId});
+  if(activePage==='dashboard')renderDashboard();
   syncApptToGoogleCalendar(D.appointments.find(a=>a.id===apId));
 }
-async function delApt(){if(!canDelete()||!pageEditable('agenda')||!await confirm('Excluir?'))return;const obj=D.appointments.find(a=>a.id===EID);if(obj)logDeletion('appointment',obj);D.appointments=D.appointments.filter(a=>a.id!==EID);save('appointments');cm('apt');renderAgenda();if(obj)deleteGCalEvent(obj);}
+async function delApt(){if(!canDelete()||!pageEditable('agenda')||!await confirm('Excluir?'))return;const obj=D.appointments.find(a=>a.id===EID);if(obj)logDeletion('appointment',obj);D.appointments=D.appointments.filter(a=>a.id!==EID);save('appointments');cm('apt');renderAgenda();if(obj){deleteGCalEvent(obj);checkWaitlistMatch(obj);if(activePage==='dashboard')renderDashboard();}}
 function shareAptWhatsApp(){
   const patId=+document.getElementById('apt-pat').value,p=getPat(patId);
   const proc=getProc(+document.getElementById('apt-proc').value);
@@ -3387,7 +3491,7 @@ function buildAuditEntry(action,oldObj,newObj){
 // Complementa o audit trail de visitas acima (que é field-a-field, específico de
 // prontuário) — aqui é só "isso existiu, foi apagado, por quem e quando", com uma
 // cópia completa do registro (snapshot), pra qualquer entidade do sistema.
-const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',prescription:'Receita',receipt:'Recibo',return:'Retorno',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Instrumental',kit:'Kit',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
+const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',prescription:'Receita',receipt:'Recibo',return:'Retorno',waitlist:'Lista de Espera',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Instrumental',kit:'Kit',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
 function logDeletion(type,obj){
   if(!D._auditDeleted)D._auditDeleted=[];
   D._auditDeleted.push({timestamp:new Date().toISOString(),userId:CU?.id||0,userName:CU?.dispName||'Sistema',action:'excluir',type,snapshot:JSON.parse(JSON.stringify(obj))});
@@ -3401,6 +3505,7 @@ function auditDeletionSummary(entry){
     case 'visit': return `${s.date||''} — ${getPat(s.patientId).name||'?'} (${s.procedure||''})`;
     case 'budget': return `Paciente: ${getPat(s.patientId).name||'?'}`;
     case 'return': return `${s.date||''} — ${getPat(s.patientId).name||'?'}`;
+    case 'waitlist': return `${s.dateFrom||''} a ${s.dateTo||''} — ${getPat(s.patientId).name||'?'}`;
     case 'otherPayment': return `${s.desc||''} — ${fmt(s.val||0)}`;
     case 'stock': return s.name||'(sem nome)';
     case 'equipment': return `${s.name||'(sem nome)'}${s.code?' — '+s.code:''}`;
@@ -4193,6 +4298,52 @@ function renderReturns(){
       </div>
     </div>`;
   }).join('')||'<div class="card" style="color:var(--t3)">Nenhum retorno cadastrado.</div>';
+}
+
+// ─── WAITLIST (lista de espera pra vaga de cancelamento) ────
+function openWait(id){
+  if((!canEdit()||!pageEditable('waitlist'))&&!id)return;EID=id||null;
+  document.getElementById('wait-pat').innerHTML='<option value="">Selecione...</option>'+D.patients.map(p=>`<option value="${p.id}">${patDisp(p.id)||p.name}</option>`).join('');
+  document.getElementById('wait-pro').innerHTML='<option value="0">Qualquer</option>'+D.professionals.map(p=>`<option value="${p.id}">${p.dispName}</option>`).join('');
+  const w=id?D.waitlist.find(x=>x.id===id):{};
+  document.getElementById('m-wait-t').textContent=id?'Editar Espera':'Nova Espera';
+  const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
+  sv('wait-pat',w.patientId);sv('wait-pro',w.professionalId||0);sv('wait-datefrom',w.dateFrom||today());sv('wait-dateto',w.dateTo||today());sv('wait-notes',w.notes);
+  document.getElementById('wait-del').style.display=(id&&canDelete()&&pageEditable('waitlist'))?'inline-flex':'none';om('wait');
+}
+function saveWait(){
+  if(!canEdit()||!pageEditable('waitlist'))return;
+  const patId=+document.getElementById('wait-pat').value;
+  const dateFrom=document.getElementById('wait-datefrom').value,dateTo=document.getElementById('wait-dateto').value;
+  if(!patId||!dateFrom||!dateTo){alert('Preencha paciente e período.');return;}
+  if(dateTo<dateFrom){alert('Data até não pode ser antes da Data de.');return;}
+  const old=EID?D.waitlist.find(w=>w.id===EID):null;
+  const obj={patientId:patId,professionalId:+document.getElementById('wait-pro').value||0,dateFrom,dateTo,notes:document.getElementById('wait-notes').value,status:old?.status||'waiting',matches:old?.matches||[]};
+  EID?D.waitlist=D.waitlist.map(w=>w.id===EID?{...obj,id:EID,createdAt:old.createdAt}:w):D.waitlist.push({...obj,id:uid(),createdAt:today()});
+  save('waitlist');cm('wait');renderWaitlist();if(activePage==='dashboard')renderDashWaitlistAlerts();
+}
+async function delWait(){if(!canDelete()||!pageEditable('waitlist')||!await confirm('Excluir?'))return;const obj=D.waitlist.find(w=>w.id===EID);if(obj)logDeletion('waitlist',obj);D.waitlist=D.waitlist.filter(w=>w.id!==EID);save('waitlist');cm('wait');renderWaitlist();}
+function renderWaitlist(){
+  const q=(document.getElementById('wait-search')?.value||'').toLowerCase().trim();
+  const filter=document.getElementById('wait-status-filter')?.value||'active';
+  const t=today();
+  let list=[...D.waitlist];
+  if(filter==='active')list=list.filter(w=>w.status==='waiting'&&w.dateTo>=t);
+  else if(filter==='contacted')list=list.filter(w=>w.status==='contacted');
+  if(q)list=list.filter(w=>{const p=getPat(w.patientId);return (p.name||'').toLowerCase().includes(q);});
+  list.sort((a,b)=>a.dateFrom.localeCompare(b.dateFrom));
+  document.getElementById('wait-body').innerHTML=list.map(w=>{
+    const p=getPat(w.patientId),pr=w.professionalId?getPro(w.professionalId):null;
+    const expired=w.dateTo<t;
+    const stBadge=w.status==='contacted'?{bg:'#dcfce7',c:'#166534',l:'Contatado'}:expired?{bg:'#f3f4f6',c:'#6b7280',l:'Expirado'}:{bg:'#fef3c7',c:'#92400e',l:'Aguardando'};
+    return`<tr style="cursor:pointer" onclick="openWait(${w.id})">
+      <td>${patDisp(w.patientId)||p.name} ${waBadge(p.phone)}</td>
+      <td>${pr?pr.dispName:'Qualquer'}</td>
+      <td>${new Date(w.dateFrom+'T00:00:00').toLocaleDateString('pt-BR')} – ${new Date(w.dateTo+'T00:00:00').toLocaleDateString('pt-BR')}</td>
+      <td><span class="badge" style="background:${stBadge.bg};color:${stBadge.c}">${stBadge.l}</span></td>
+      <td><button class="btn btn-o btn-sm" onclick="event.stopPropagation();openWait(${w.id})">Editar</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:20px">Nenhuma entrada na lista de espera.</td></tr>';
 }
 
 // ─── FINANCE ───────────────────────────────────────────────
@@ -5719,6 +5870,13 @@ Local: {clinica}
 
 Aguardamos sua confirmação!
 Atenciosamente, equipe {clinica}`,
+  waWaitlist: `Olá, {nome}! 😊
+Boas notícias! Abriu uma vaga que combina com o que você estava esperando:
+📅 {data} às {hora}
+🦷 Com {profissional}
+📍 {clinica}
+
+Quer confirmar esse horário? É só responder aqui!`,
 };
 
 function renderMessages() {
@@ -5726,6 +5884,7 @@ function renderMessages() {
   const sv = (id, key) => { const el=document.getElementById(id); if(el) el.value = msgs[key]||DEFAULT_MSGS[key]||''; };
   sv('msg-wa-confirm','waConfirm'); sv('msg-email-confirm','emailConfirm');
   sv('msg-wa-return','waReturn'); sv('msg-email-return','emailReturn');
+  sv('msg-wa-waitlist','waWaitlist');
 }
 function saveMessages() {
   D.messages = {
@@ -5733,6 +5892,7 @@ function saveMessages() {
     emailConfirm: document.getElementById('msg-email-confirm')?.value||'',
     waReturn:     document.getElementById('msg-wa-return')?.value||'',
     emailReturn:  document.getElementById('msg-email-return')?.value||'',
+    waWaitlist:   document.getElementById('msg-wa-waitlist')?.value||'',
   };
   save('messages');
   alert('✅ Modelos salvos!');
@@ -7047,7 +7207,7 @@ function initMulticlinic(){
 }
 
 function migrateDataToClinic(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','config','messages'];
   keys.forEach(k=>{
     const existing=LS.get(k);
     if(existing!==null){
@@ -7135,7 +7295,7 @@ window._onFirestoreCollectionUpdate=function(key,data,cache){
 // ── Passo 7: terceira camada de save() — sobe pro Firestore o que mudou ──
 // Segue o mesmo padrão já documentado (reatribuição, nunca `function save(k){}`
 // de novo — é o bug de recursão infinita já resolvido uma vez neste arquivo).
-const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts'];
+const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist'];
 const FB_SINGLEDOC_KEYS=['config','messages'];
 function fbDocIdFor(key,rec){
   return key==='professionals' ? String(rec.email||'').toLowerCase().trim() : String(rec.id);
@@ -7206,7 +7366,7 @@ function switchClinic(id){
 
 function saveAllClinicData(){
   if(!activeClinicId)return;
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','config','messages'];
   keys.forEach(k=>{
     if(D[k]!==undefined){
       localStorage.setItem('og3_clinic_'+activeClinicId+'_'+k,JSON.stringify(D[k]));
@@ -7215,7 +7375,7 @@ function saveAllClinicData(){
 }
 
 function loadClinicData(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','config','messages'];
   keys.forEach(k=>{
     const raw=localStorage.getItem('og3_clinic_'+clinicId+'_'+k);
     if(raw){try{D[k]=JSON.parse(raw);}catch{}}
@@ -7262,7 +7422,7 @@ async function delClinic(){
   const c=clinics.find(x=>x.id===EID);
   if(c?.isDefault){alert('Não é possível excluir a clínica padrão.');return;}
   // Remove clinic data
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','config','messages'];
   keys.forEach(k=>{localStorage.removeItem('og3_clinic_'+EID+'_'+k);});
   clinics=clinics.filter(x=>x.id!==EID);
   saveClinics(clinics);
