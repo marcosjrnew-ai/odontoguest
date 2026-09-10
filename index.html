@@ -53,7 +53,7 @@ window._fbSignOut = async function(){
 // As 10 coleções em array e as 2 em documento único (config/messages) que já
 // eram compartilhadas por clínica no localStorage (ver migrateDataToClinic no
 // script principal) — precisa ficar em sincronia com essa mesma lista.
-const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist'];
+const ARRAY_COLS = ['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','shoppingExtra'];
 const SINGLEDOC_COLS = ['config','messages'];
 
 window._applyingRemote = false;
@@ -832,8 +832,9 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
 
 <!-- SHOPPING -->
 <div id="page-shopping" class="page">
-  <div class="row-flex"><div><div class="s-title">Lista de Compras</div><div class="s-sub">Gerada automaticamente do estoque</div></div>
-  <button class="btn btn-o btn-sm no-print" onclick="window.print()">🖨️</button></div>
+  <div class="row-flex"><div><div class="s-title">Lista de Compras</div><div class="s-sub">Do estoque + necessidades avulsas</div></div>
+  <div class="actions no-print"><button class="btn btn-p btn-sm" id="btn-new-shopx" onclick="openShopX()">+ Item</button>
+  <button class="btn btn-o btn-sm" onclick="window.print()">🖨️</button></div></div>
   <div id="shop-list"></div>
 </div>
 
@@ -1468,6 +1469,20 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   </div>
 </div></div>
 
+<div class="overlay" id="m-shopx" style="display:none" onclick="if(event.target===this)cm('shopx')"><div class="modal" onclick="event.stopPropagation()" style="max-width:420px">
+  <div class="modal-title" id="m-shopx-t">Novo Item</div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div><label>Item</label><input class="inp" id="shopx-name" placeholder="Ex: Luvas de procedimento tamanho M"/></div>
+    <div><label>Quantidade (opcional)</label><input class="inp" id="shopx-qty" placeholder="Ex: 2 caixas"/></div>
+    <div><label>Observação (opcional)</label><input class="inp" id="shopx-notes" placeholder="Ex: acabou antes do previsto"/></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-r btn-sm" id="shopx-del" style="display:none" onclick="delShopX()">Excluir</button>
+    <button class="btn btn-o" onclick="cm('shopx')">Cancelar</button>
+    <button class="btn btn-p" onclick="saveShopX()">Salvar</button>
+  </div>
+</div></div>
+
 <div class="overlay" id="m-sk" style="display:none" onclick="if(event.target===this)cm('sk')"><div class="modal" onclick="event.stopPropagation()" style="max-width:450px">
   <div class="modal-title" id="m-sk-t">Item de Estoque</div>
   <div style="display:flex;flex-direction:column;gap:10px">
@@ -1843,6 +1858,7 @@ suppliers:[],
 prescriptions:[],
 receipts:[],
 waitlist:[],
+shoppingExtra:[],
 roles:["Dentista","Endodontista","Ortodontista","Implantodontista","Periodontista","Técnico","Auxiliar","Secretária","Recepcionista"],
 config:{name:"Consultório OdontoGuest",phone:"",addr:"",cro:"",taxId:"",logo:"",accentColor:"#0c6e9e",googleReviewLink:""},
 procs:DEF_PROCS,
@@ -2130,7 +2146,7 @@ function applyPermissions(){
 // Fase 3 — esconde item de menu (e a aba "Kits", que não tem nav-btn próprio) quando
 // pageAccess='hidden' pro profissional logado. Só esconde, nunca mostra — não interfere com a
 // lógica de nav-admin/nav-backup (canAdmin()/isDev()) que já roda antes disso em enterApp().
-const BTN_NEW_PAGE={'btn-new-apt':'agenda','btn-new-pat':'patients','btn-new-rec':'records','btn-new-bud':'budgets','btn-new-presc':'prescriptions','btn-new-receipt':'receipts','btn-new-ret':'returns','btn-new-wait':'waitlist','btn-new-op':'otherpay','btn-new-sk':'stock','btn-new-eq':'equipment','btn-new-kit':'kits','btn-new-sup':'suppliers','btn-new-pro':'professionals'};
+const BTN_NEW_PAGE={'btn-new-apt':'agenda','btn-new-pat':'patients','btn-new-rec':'records','btn-new-bud':'budgets','btn-new-presc':'prescriptions','btn-new-receipt':'receipts','btn-new-ret':'returns','btn-new-wait':'waitlist','btn-new-op':'otherpay','btn-new-sk':'stock','btn-new-eq':'equipment','btn-new-kit':'kits','btn-new-sup':'suppliers','btn-new-pro':'professionals','btn-new-shopx':'shopping'};
 function applyPagePermissions(){
   document.querySelectorAll('.nav-btn[onclick]').forEach(btn=>{
     const m=btn.getAttribute('onclick').match(/go\('([^']+)'\)/);
@@ -3498,7 +3514,7 @@ function buildAuditEntry(action,oldObj,newObj){
 // Complementa o audit trail de visitas acima (que é field-a-field, específico de
 // prontuário) — aqui é só "isso existiu, foi apagado, por quem e quando", com uma
 // cópia completa do registro (snapshot), pra qualquer entidade do sistema.
-const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',prescription:'Receita',receipt:'Recibo',return:'Retorno',waitlist:'Lista de Espera',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Instrumental',kit:'Kit',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento'};
+const AUDIT_TYPE_LABELS={patient:'Paciente',appointment:'Agendamento',visit:'Atendimento',budget:'Orçamento',prescription:'Receita',receipt:'Recibo',return:'Retorno',waitlist:'Lista de Espera',otherPayment:'Outro Pagamento',stock:'Estoque',equipment:'Instrumental',kit:'Kit',supplier:'Fornecedor',professional:'Profissional',procedure:'Procedimento',shopItem:'Item de Compra'};
 function logDeletion(type,obj){
   if(!D._auditDeleted)D._auditDeleted=[];
   D._auditDeleted.push({timestamp:new Date().toISOString(),userId:CU?.id||0,userName:CU?.dispName||'Sistema',action:'excluir',type,snapshot:JSON.parse(JSON.stringify(obj))});
@@ -3520,6 +3536,7 @@ function auditDeletionSummary(entry){
     case 'supplier': return s.name||'(sem nome)';
     case 'professional': return s.dispName||s.fullName||'(sem nome)';
     case 'procedure': return s.name||'(sem nome)';
+    case 'shopItem': return `${s.name||'(sem nome)'}${s.qty?' — '+s.qty:''}`;
     default: return '';
   }
 }
@@ -4717,22 +4734,27 @@ function saveKitCheck(){
 function renderShopping(){
   const low=D.stock.filter(s=>s.qty<=s.minQty),exp=D.stock.filter(s=>s.exp&&daysUntil(s.exp)<=30);
   const all=[...new Map([...low,...exp].map(s=>[s.id,s])).values()];
+  const extra=[...D.shoppingExtra].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   const kitAlerts=getKitAlerts();
   let html='';
-  if(!all.length&&!kitAlerts.length){
+  if(!all.length&&!extra.length&&!kitAlerts.length){
     html='<div class="card" style="text-align:center;padding:30px;color:#10b981;font-size:15px;font-weight:700">✅ Tudo em dia!</div>';
   } else {
-    if(all.length){
+    if(all.length||extra.length){
       html+=`<div class="card" style="margin-bottom:14px"><div class="card-hd">${ogIco('shopping',18)} Insumos para Comprar</div>
-      <table class="tbl"><thead><tr><th>Insumo</th><th>Atual</th><th>Mínimo</th><th>Validade</th><th>Fornecedor</th><th>Est. Custo</th></tr></thead><tbody>
+      <table class="tbl"><thead><tr><th>Item</th><th>Qtd./Estoque</th><th>Validade</th><th>Fornecedor/Obs.</th><th>Est. Custo</th><th class="no-print"></th></tr></thead><tbody>
       ${all.map(s=>{const du=s.exp?daysUntil(s.exp):null,need=Math.max(0,s.minQty*3-s.qty),sup=getSup(s.supplierId);
         return`<tr><td style="font-weight:700">${s.name}${du!==null&&du<=30?` <span class="badge" style="background:#fee2e2;color:#dc2626">${du<0?'Venc.':du+'d'}</span>`:''}</td>
-          <td><span style="color:var(--R);font-weight:700">${s.qty}</span> ${s.unit}</td><td>${s.minQty}</td>
+          <td><span style="color:var(--R);font-weight:700">${s.qty}</span>/${s.minQty} ${s.unit}</td>
           <td style="font-size:11.5px">${s.exp?new Date(s.exp+'T00:00:00').toLocaleDateString('pt-BR'):'-'}</td>
           <td style="font-size:11.5px">${sup.name!=='—'?sup.name+(sup.phone?` ${waBadge(sup.phone)}`:''):'-'}</td>
-          <td style="font-weight:700;color:var(--P)">${fmt(need*s.cost)}</td></tr>`;}).join('')}
+          <td style="font-weight:700;color:var(--P)">${fmt(need*s.cost)}</td><td class="no-print"></td></tr>`;}).join('')}
+      ${extra.map(x=>`<tr><td style="font-weight:700">${x.name} <span class="badge" style="background:#e0f4ff;color:var(--P)">Manual</span></td>
+          <td style="font-size:12px">${x.qty||'-'}</td><td style="font-size:11.5px">-</td>
+          <td style="font-size:11.5px">${x.notes||'-'}</td><td style="font-size:11.5px">-</td>
+          <td class="no-print" style="white-space:nowrap"><button class="btn btn-o btn-sm" style="padding:3px 8px" onclick="openShopX(${x.id})">✏️</button></td></tr>`).join('')}
       </tbody></table>
-      <div style="margin-top:10px;text-align:right;font-weight:800;color:var(--P)">Total Estimado: ${fmt(all.reduce((s,sk)=>s+Math.max(0,sk.minQty*3-sk.qty)*sk.cost,0))}</div></div>`;
+      ${all.length?`<div style="margin-top:10px;text-align:right;font-weight:800;color:var(--P)">Total Estimado (insumos do estoque): ${fmt(all.reduce((s,sk)=>s+Math.max(0,sk.minQty*3-sk.qty)*sk.cost,0))}</div>`:''}</div>`;
     }
     if(kitAlerts.length){
       html+=`<div class="card"><div class="card-hd">🧰 Reposição de Instrumental (Kits Incompletos)</div>
@@ -4743,6 +4765,32 @@ function renderShopping(){
     }
   }
   document.getElementById('shop-list').innerHTML=html;
+}
+function openShopX(id){
+  if((!canEdit()||!pageEditable('shopping'))&&!id)return;
+  EID=id||null;
+  const x=id?D.shoppingExtra.find(i=>i.id===id):{};
+  document.getElementById('m-shopx-t').textContent=id?'Editar Item':'Novo Item';
+  const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
+  sv('shopx-name',x.name);sv('shopx-qty',x.qty);sv('shopx-notes',x.notes);
+  document.getElementById('shopx-del').style.display=(id&&canDelete()&&pageEditable('shopping'))?'inline-flex':'none';
+  om('shopx');
+}
+function saveShopX(){
+  if(!canEdit()||!pageEditable('shopping'))return;
+  const name=document.getElementById('shopx-name').value.trim();
+  if(!name)return;
+  const obj={name,qty:document.getElementById('shopx-qty').value.trim(),notes:document.getElementById('shopx-notes').value.trim()};
+  const old=EID?D.shoppingExtra.find(x=>x.id===EID):null;
+  EID?D.shoppingExtra=D.shoppingExtra.map(x=>x.id===EID?{...obj,id:EID,createdAt:old.createdAt}:x):D.shoppingExtra.push({...obj,id:uid(),createdAt:today()});
+  save('shoppingExtra');cm('shopx');renderShopping();
+}
+async function delShopX(){
+  if(!canDelete()||!pageEditable('shopping')||!await confirm('Excluir este item da lista de compras?'))return;
+  const obj=D.shoppingExtra.find(x=>x.id===EID);
+  if(obj)logDeletion('shopItem',obj);
+  D.shoppingExtra=D.shoppingExtra.filter(x=>x.id!==EID);
+  save('shoppingExtra');cm('shopx');renderShopping();
 }
 
 // ─── SUPPLIERS ─────────────────────────────────────────────
@@ -7214,7 +7262,7 @@ function initMulticlinic(){
 }
 
 function migrateDataToClinic(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','shoppingExtra','config','messages'];
   keys.forEach(k=>{
     const existing=LS.get(k);
     if(existing!==null){
@@ -7316,7 +7364,7 @@ function _refreshCUIfProfessionals(key){
 // ── Passo 7: terceira camada de save() — sobe pro Firestore o que mudou ──
 // Segue o mesmo padrão já documentado (reatribuição, nunca `function save(k){}`
 // de novo — é o bug de recursão infinita já resolvido uma vez neste arquivo).
-const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist'];
+const FB_ARRAY_KEYS=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','shoppingExtra'];
 const FB_SINGLEDOC_KEYS=['config','messages'];
 function fbDocIdFor(key,rec){
   return key==='professionals' ? String(rec.email||'').toLowerCase().trim() : String(rec.id);
@@ -7387,7 +7435,7 @@ function switchClinic(id){
 
 function saveAllClinicData(){
   if(!activeClinicId)return;
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','shoppingExtra','config','messages'];
   keys.forEach(k=>{
     if(D[k]!==undefined){
       localStorage.setItem('og3_clinic_'+activeClinicId+'_'+k,JSON.stringify(D[k]));
@@ -7396,7 +7444,7 @@ function saveAllClinicData(){
 }
 
 function loadClinicData(clinicId){
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','shoppingExtra','config','messages'];
   keys.forEach(k=>{
     const raw=localStorage.getItem('og3_clinic_'+clinicId+'_'+k);
     if(raw){try{D[k]=JSON.parse(raw);}catch{}}
@@ -7443,7 +7491,7 @@ async function delClinic(){
   const c=clinics.find(x=>x.id===EID);
   if(c?.isDefault){alert('Não é possível excluir a clínica padrão.');return;}
   // Remove clinic data
-  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','config','messages'];
+  const keys=['patients','appointments','visits','budgets','returns','stock','equipment','kits','otherPayments','suppliers','professionals','procs','prescriptions','receipts','waitlist','shoppingExtra','config','messages'];
   keys.forEach(k=>{localStorage.removeItem('og3_clinic_'+EID+'_'+k);});
   clinics=clinics.filter(x=>x.id!==EID);
   saveClinics(clinics);
