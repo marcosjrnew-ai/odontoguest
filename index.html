@@ -201,6 +201,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t1);min-h
 .s-title{font-family:'Sora',sans-serif;font-size:21px;font-weight:800;color:var(--t1)}
 .s-sub{font-size:13px;color:var(--t3);margin-top:2px}
 .row-flex{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+/* Sticky header — todas as 23 páginas têm .row-flex (título+ferramentas) como primeiro filho
+   direto de .page, então uma regra genérica cobre todas de uma vez, sem editar HTML por página.
+   #main é o único contêiner de rolagem (ver "a página nunca rola inteira" no CLAUDE.md) — sticky
+   gruda em relação a ele. Em @media print, #main vira overflow:visible, o que já neutraliza o
+   sticky sozinho (position:sticky só "gruda" dentro de um ancestral com overflow scroll/auto/
+   hidden), sem precisar de regra extra pra impressão. */
+.page>.row-flex:first-child{position:sticky;top:0;z-index:5;background:var(--bg);padding-top:2px;margin-top:-2px}
 .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
