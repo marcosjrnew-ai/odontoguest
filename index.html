@@ -743,7 +743,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
       </div>
     </div>
     <div style="font-size:11.5px;color:var(--t3);margin-bottom:10px">Receita = valores recebidos de pacientes. Custos: aluguel e insumos comprados pelo profissional (Outros Pagamentos). Usa o filtro de profissional acima.</div>
-    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Período</th><th>Receita</th><th>Aluguel</th><th>Insumos</th><th>Lucro/Prejuízo</th></tr></thead><tbody id="rep-pl-body"></tbody></table></div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Período</th><th>Receita</th><th>Aluguel</th><th>Insumos</th><th>Pag. Profissionais</th><th>Lucro/Prejuízo</th></tr></thead><tbody id="rep-pl-body"></tbody></table></div>
   </div>
   <div class="card" style="margin-top:14px">
     <div class="row-flex" style="margin-bottom:4px"><div class="card-hd" style="margin-bottom:0"><span class="nav-icon" data-ico="reports"></span> Livro-Caixa (Carnê-Leão)</div>
@@ -753,7 +753,7 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
       </div>
     </div>
     <div style="font-size:11.5px;color:var(--t3);margin-bottom:10px">Receita bruta e despesas dedutíveis (aluguel e insumos) por mês, ano civil completo — pronto para a declaração mensal do Carnê-Leão. Usa o filtro de profissional acima.</div>
-    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Mês</th><th>Receita Bruta</th><th>Aluguel</th><th>Insumos</th><th>Despesas Dedutíveis</th><th>Base de Cálculo</th></tr></thead><tbody id="lc-body"></tbody></table></div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Mês</th><th>Receita Bruta</th><th>Aluguel</th><th>Insumos</th><th>Pag. Profissionais</th><th>Despesas Dedutíveis</th><th>Base de Cálculo</th></tr></thead><tbody id="lc-body"></tbody></table></div>
   </div>
 </div>
 
@@ -1682,13 +1682,16 @@ label{font-size:11.5px;font-weight:700;color:var(--t3);display:block;margin-bott
   <div class="modal-title" id="m-op-t">Outro Pagamento</div>
   <div style="display:flex;flex-direction:column;gap:10px">
     <div><label>Tipo</label><select class="inp" id="op-type" onchange="toggleRentRate()">
-      <option value="daily">Diária de Profissional</option><option value="expense">Despesa Operacional</option>
+      <option value="daily">Diária de Profissional</option><option value="service">Pagamento a Profissional Associado</option><option value="expense">Despesa Operacional</option>
       <option value="material">Insumos Extra</option><option value="rent">Aluguel/Infraestrutura</option><option value="other">Outro</option></select></div>
     <div id="op-rate-wrap" style="display:none"><label>Tarifa</label><select class="inp" id="op-rate" onchange="applyRentRate()"></select></div>
     <div><label>Descrição</label><input class="inp" id="op-desc"/></div>
     <div><label>Profissional (se aplicável)</label><select class="inp" id="op-pro"><option value="">Nenhum</option></select></div>
-    <div><label>Data</label><input type="date" class="inp" id="op-date"/></div>
-    <div><label>Valor (R$)</label><input type="number" class="inp" id="op-val" min="0" step="0.01"/></div>
+    <div class="g2" style="gap:9px">
+      <div><label>Data</label><input type="date" class="inp" id="op-date"/></div>
+      <div><label>Valor (R$)</label><input type="number" class="inp" id="op-val" min="0" step="0.01"/></div>
+    </div>
+    <div><label>Forma de Pagamento (opcional)</label><select class="inp" id="op-pay"><option value="">-</option><option value="pix">PIX</option><option value="cash">Dinheiro</option><option value="debit">Débito</option><option value="credit">Crédito</option></select></div>
     <div><label>Observações</label><textarea class="inp" id="op-notes" rows="2"></textarea></div>
   </div>
   <div class="modal-footer">
@@ -4436,11 +4439,12 @@ function applyRentRate(){
 }
 function renderOtherPay(){
   const total=D.otherPayments.reduce((s,op)=>s+(op.val||0),0);
-  const byType={'daily':'Diária','expense':'Despesa','material':'Insumos','rent':'Aluguel','other':'Outro'};
+  const byType={'daily':'Diária','service':'Repasse Prof.','expense':'Despesa','material':'Insumos','rent':'Aluguel','other':'Outro'};
   document.getElementById('op-stats').innerHTML=[
     {l:"Total Lançado",v:total,c:"#e63946",i:"otherpay"},
     {l:"Diárias",v:D.otherPayments.filter(o=>o.type==='daily').reduce((s,o)=>s+(o.val||0),0),c:"#f59e0b",i:"patients"},
-    {l:"Despesas",v:D.otherPayments.filter(o=>o.type!=='daily').reduce((s,o)=>s+(o.val||0),0),c:"#7c3aed",i:"records"},
+    {l:"Pag. Profissionais",v:D.otherPayments.filter(o=>o.type==='service').reduce((s,o)=>s+(o.val||0),0),c:"#0ea5e9",i:"professionals"},
+    {l:"Despesas",v:D.otherPayments.filter(o=>!['daily','service'].includes(o.type)).reduce((s,o)=>s+(o.val||0),0),c:"#7c3aed",i:"records"},
   ].map(s=>`<div class="card stat-card"><div class="stat-icon" style="background:${s.c}18;color:${s.c}">${ogIco(s.i,20)}</div><div><div style="font-size:18px;font-weight:800">${fmt(s.v)}</div><div style="font-size:12px;color:var(--t3)">${s.l}</div></div></div>`).join('');
   document.getElementById('op-body').innerHTML=[...D.otherPayments].sort((a,b)=>b.date.localeCompare(a.date)).map(op=>{
     const pr=getPro(op.professionalId||0);
@@ -4449,7 +4453,7 @@ function renderOtherPay(){
       <td style="font-weight:600">${op.desc}</td>
       <td style="font-size:12.5px">${op.professionalId?pr.dispName:'-'}</td>
       <td style="font-weight:800;color:var(--R)">${fmt(op.val)}</td>
-      <td><button class="btn btn-o btn-sm" onclick="openOtherPay(${op.id})">✏️</button></td>
+      <td style="white-space:nowrap"><button class="btn btn-o btn-sm" onclick="openOtherPay(${op.id})">✏️</button>${op.professionalId?`<button class="btn btn-o btn-sm" onclick="printProPayment(${op.id})">🖨️</button>`:''}</td>
     </tr>`;
   }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--t3);padding:20px">Nenhum lançamento.</td></tr>';
 }
@@ -4459,17 +4463,61 @@ function openOtherPay(id){
   const op=id?D.otherPayments.find(x=>x.id===id):{};
   document.getElementById('m-op-t').textContent=id?'Editar Lançamento':'Novo Lançamento';
   const sv=(eid,val)=>{const el=document.getElementById(eid);if(el)el.value=val||'';};
-  sv('op-type',op.type||'daily');sv('op-desc',op.desc);sv('op-pro',op.professionalId||'');sv('op-date',op.date||today());sv('op-val',op.val);sv('op-notes',op.notes);
+  sv('op-type',op.type||'daily');sv('op-desc',op.desc);sv('op-pro',op.professionalId||'');sv('op-date',op.date||today());sv('op-val',op.val);sv('op-notes',op.notes);sv('op-pay',op.payMethod||'');
   toggleRentRate();sv('op-rate',op.rateType||'free');
   document.getElementById('op-del').style.display=(id&&canDelete()&&pageEditable('otherpay'))?'inline-flex':'none';om('op');
 }
 function saveOtherPay(){
   if(!canEdit()||!pageEditable('otherpay'))return;const type=document.getElementById('op-type').value;
-  const obj={type,desc:document.getElementById('op-desc').value,professionalId:+document.getElementById('op-pro').value||0,date:document.getElementById('op-date').value,val:+document.getElementById('op-val').value||0,notes:document.getElementById('op-notes').value,rateType:type==='rent'?(document.getElementById('op-rate').value||'free'):null};
+  const proId=+document.getElementById('op-pro').value||0;
+  if(type==='service'&&!proId){alert('Selecione o profissional que recebeu o pagamento.');return;}
+  const obj={type,desc:document.getElementById('op-desc').value,professionalId:proId,date:document.getElementById('op-date').value,val:+document.getElementById('op-val').value||0,notes:document.getElementById('op-notes').value,payMethod:document.getElementById('op-pay').value||'',rateType:type==='rent'?(document.getElementById('op-rate').value||'free'):null};
   EID?D.otherPayments=D.otherPayments.map(o=>o.id===EID?{...obj,id:EID}:o):D.otherPayments.push({...obj,id:uid()});
   save('otherPayments');cm('op');renderOtherPay();
 }
 async function delOtherPay(){if(!canDelete()||!pageEditable('otherpay')||!await confirm('Excluir?'))return;const obj=D.otherPayments.find(o=>o.id===EID);if(obj)logDeletion('otherPayment',obj);D.otherPayments=D.otherPayments.filter(o=>o.id!==EID);save('otherPayments');cm('op');renderOtherPay();}
+function printProPayment(opId){
+  const op=D.otherPayments.find(o=>o.id===opId);if(!op||!op.professionalId)return;
+  const pr=getPro(op.professionalId),cfg=D.config||{};
+  const payLbl={pix:'PIX',cash:'Dinheiro',debit:'Débito',credit:'Crédito'}[op.payMethod]||'';
+  const desc=op.desc||'serviços prestados';
+  const accent=cfg.accentColor||'#0c6e9e';
+  const pw=window.open('','_blank');
+  pw.document.write(`<!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║                      OdontoGuest v3.9                        ║
+  ║              Sistema de Gestão Odontológica                  ║
+  ╠══════════════════════════════════════════════════════════════╣
+  ║  © 2026 OdontoGuest. Todos os direitos reservados.           ║
+  ║  Protegido pela Lei de Direitos Autorais nº 9.610/1998.      ║
+  ║                                                              ║
+  ║  É expressamente proibido:                                   ║
+  ║  • Copiar, modificar ou distribuir este software             ║
+  ║  • Usar o código para fins comerciais sem autorização        ║
+  ║  • Remover ou alterar este aviso de direitos autorais        ║
+  ║                                                              ║
+  ║  Violações estão sujeitas a sanções civis e criminais.       ║
+  ╚══════════════════════════════════════════════════════════════╝
+--><html><head><title>Comprovante de Pagamento — ${pr.dispName}</title>${PRINT_FONTS}<style>${_printBrandCSS(accent)}
+  .titlerow{display:flex;justify-content:space-between;align-items:center;margin:0 0 18px}
+  .value{font-size:28px;font-weight:800;color:${accent};text-align:right;margin-bottom:20px;font-family:'Quicksand',sans-serif}
+  .body-txt{font-size:14px;line-height:1.9;text-align:justify;padding:16px 18px;background:${accent}12;border-radius:10px}
+  </style></head><body><div class="sheet">${_printCorners(accent)}
+  ${_printHeader(cfg,accent)}
+  <div class="titlerow"><div class="doc-title" style="margin:0"><h1>Comprovante de Pagamento</h1></div></div>
+  <div class="value">${fmt(op.val)}</div>
+  <div class="body-txt">Recebi de <b>${cfg.name||'Consultório'}</b>${cfg.taxId?', CPF/CNPJ '+cfg.taxId:''}, a importância de <b>${fmt(op.val)}</b>
+  (${valorPorExtenso(op.val)}), referente a <b>${desc}</b>, ${payLbl?'pago via '+payLbl+', ':''}em ${op.date?new Date(op.date+'T00:00:00').toLocaleDateString('pt-BR'):new Date().toLocaleDateString('pt-BR')}.
+  Para maior clareza e eficácia, firmo o presente comprovante.</div>
+  <div class="sign"><div class="line"></div>${pr.dispName||''}</div>
+  ${_printTagline()}
+  <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')} — OdontoGuest v3.9</div>
+  </div>
+  <script>window.print();<\/script><!-- COPYRIGHT -->
+<div style="display:none" id="og-copyright" aria-hidden="true">© 2026 OdontoGuest. Todos os direitos reservados. Protegido pela Lei 9.610/1998. Uso não autorizado é proibido.</div>
+</body></html>`);
+}
 
 // ─── STOCK (Insumos) ─────────────────────────────────────────
 let _skSort={key:'name',dir:1};
@@ -6012,11 +6060,13 @@ function _profitLossForRange(from,to,proFilt){
   let visits=D.visits.filter(v=>v.date>=from&&v.date<=to);
   let rent=D.otherPayments.filter(o=>o.type==='rent'&&o.date>=from&&o.date<=to);
   let mats=D.otherPayments.filter(o=>o.type==='material'&&o.date>=from&&o.date<=to);
-  if(proFilt){visits=visits.filter(v=>v.professionalId===+proFilt);rent=rent.filter(o=>o.professionalId===+proFilt);mats=mats.filter(o=>o.professionalId===+proFilt);}
+  let servs=D.otherPayments.filter(o=>o.type==='service'&&o.date>=from&&o.date<=to);
+  if(proFilt){visits=visits.filter(v=>v.professionalId===+proFilt);rent=rent.filter(o=>o.professionalId===+proFilt);mats=mats.filter(o=>o.professionalId===+proFilt);servs=servs.filter(o=>o.professionalId===+proFilt);}
   const receita=visits.reduce((s,v)=>s+(v.paid||0),0);
   const aluguel=rent.reduce((s,o)=>s+(o.val||0),0);
   const materiais=mats.reduce((s,o)=>s+(o.val||0),0);
-  return{receita,aluguel,materiais,lucro:receita-aluguel-materiais};
+  const servicos=servs.reduce((s,o)=>s+(o.val||0),0);
+  return{receita,aluguel,materiais,servicos,lucro:receita-aluguel-materiais-servicos};
 }
 function renderProfitLossTable(){
   const el=document.getElementById('rep-pl-body');if(!el)return;
@@ -6024,13 +6074,14 @@ function renderProfitLossTable(){
   const counts={week:12,month:12,quarter:8,semester:6,year:5};
   const ranges=_periodRanges(repPeriodView,counts[repPeriodView]);
   el.innerHTML=ranges.map(r=>{
-    const{receita,aluguel,materiais,lucro}=_profitLossForRange(r.from,r.to,proFilt);
+    const{receita,aluguel,materiais,servicos,lucro}=_profitLossForRange(r.from,r.to,proFilt);
     const neg=lucro<0;
     return`<tr style="${neg?'background:#fef2f2':''}">
       <td style="font-weight:700">${r.label}</td>
       <td>${fmt(receita)}</td>
       <td>${fmt(aluguel)}</td>
       <td>${fmt(materiais)}</td>
+      <td>${fmt(servicos)}</td>
       <td style="font-weight:800;color:${neg?'#dc2626':'#16a34a'}">${fmt(lucro)}</td>
     </tr>`;
   }).join('');
@@ -6064,14 +6115,14 @@ function renderLivroCaixa(){
   const year=+document.getElementById('lc-year')?.value||new Date().getFullYear();
   const proFilt=document.getElementById('rep-pro-filter')?.value||'';
   const months=_calendarMonthRanges(year);
-  let totR=0,totA=0,totM=0;
+  let totR=0,totA=0,totM=0,totS=0;
   const body=months.map(mo=>{
-    const{receita,aluguel,materiais,lucro}=_profitLossForRange(mo.from,mo.to,proFilt);
-    totR+=receita;totA+=aluguel;totM+=materiais;
-    return`<tr><td style="font-weight:700;text-transform:capitalize">${mo.label}</td><td>${fmt(receita)}</td><td>${fmt(aluguel)}</td><td>${fmt(materiais)}</td><td>${fmt(aluguel+materiais)}</td><td style="font-weight:800;color:${lucro<0?'#dc2626':'#16a34a'}">${fmt(lucro)}</td></tr>`;
+    const{receita,aluguel,materiais,servicos,lucro}=_profitLossForRange(mo.from,mo.to,proFilt);
+    totR+=receita;totA+=aluguel;totM+=materiais;totS+=servicos;
+    return`<tr><td style="font-weight:700;text-transform:capitalize">${mo.label}</td><td>${fmt(receita)}</td><td>${fmt(aluguel)}</td><td>${fmt(materiais)}</td><td>${fmt(servicos)}</td><td>${fmt(aluguel+materiais+servicos)}</td><td style="font-weight:800;color:${lucro<0?'#dc2626':'#16a34a'}">${fmt(lucro)}</td></tr>`;
   }).join('');
-  const totLucro=totR-totA-totM;
-  const totalRow=`<tr style="border-top:2px solid var(--border);font-weight:900"><td>Total ${year}</td><td>${fmt(totR)}</td><td>${fmt(totA)}</td><td>${fmt(totM)}</td><td>${fmt(totA+totM)}</td><td style="color:${totLucro<0?'#dc2626':'#16a34a'}">${fmt(totLucro)}</td></tr>`;
+  const totLucro=totR-totA-totM-totS;
+  const totalRow=`<tr style="border-top:2px solid var(--border);font-weight:900"><td>Total ${year}</td><td>${fmt(totR)}</td><td>${fmt(totA)}</td><td>${fmt(totM)}</td><td>${fmt(totS)}</td><td>${fmt(totA+totM+totS)}</td><td style="color:${totLucro<0?'#dc2626':'#16a34a'}">${fmt(totLucro)}</td></tr>`;
   const el=document.getElementById('lc-body');if(el)el.innerHTML=body+totalRow;
 }
 function exportLivroCaixa(){
@@ -6079,15 +6130,15 @@ function exportLivroCaixa(){
   const proFilt=document.getElementById('rep-pro-filter')?.value||'';
   const proLabel=proFilt?(getPro(+proFilt).dispName||'Profissional'):'Todos os Profissionais';
   const months=_calendarMonthRanges(year);
-  const header=['Mês','Receita Bruta','Aluguel','Insumos','Despesas Dedutíveis','Base de Cálculo'].map(csvEsc).join(',');
-  let totR=0,totA=0,totM=0;
+  const header=['Mês','Receita Bruta','Aluguel','Insumos','Pag. Profissionais','Despesas Dedutíveis','Base de Cálculo'].map(csvEsc).join(',');
+  let totR=0,totA=0,totM=0,totS=0;
   const lines=months.map(mo=>{
-    const{receita,aluguel,materiais,lucro}=_profitLossForRange(mo.from,mo.to,proFilt);
-    totR+=receita;totA+=aluguel;totM+=materiais;
-    return[mo.label,receita.toFixed(2),aluguel.toFixed(2),materiais.toFixed(2),(aluguel+materiais).toFixed(2),lucro.toFixed(2)].map(csvEsc).join(',');
+    const{receita,aluguel,materiais,servicos,lucro}=_profitLossForRange(mo.from,mo.to,proFilt);
+    totR+=receita;totA+=aluguel;totM+=materiais;totS+=servicos;
+    return[mo.label,receita.toFixed(2),aluguel.toFixed(2),materiais.toFixed(2),servicos.toFixed(2),(aluguel+materiais+servicos).toFixed(2),lucro.toFixed(2)].map(csvEsc).join(',');
   });
-  const totLucro=totR-totA-totM;
-  lines.push(['Total '+year,totR.toFixed(2),totA.toFixed(2),totM.toFixed(2),(totA+totM).toFixed(2),totLucro.toFixed(2)].map(csvEsc).join(','));
+  const totLucro=totR-totA-totM-totS;
+  lines.push(['Total '+year,totR.toFixed(2),totA.toFixed(2),totM.toFixed(2),totS.toFixed(2),(totA+totM+totS).toFixed(2),totLucro.toFixed(2)].map(csvEsc).join(','));
   const csv='﻿'+csvEsc(`Livro-Caixa ${year} — ${proLabel}`)+'\n'+header+'\n'+lines.join('\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');
